@@ -135,9 +135,9 @@ function [h_annual, dhdt_annual, dhdt_monthly, years, lat_sphere, long_sphere] =
 
     elseif strcmp(data_name, 'Buffalo2025-GEMB') || strcmp(data_name, 'Buffalo2025-GSFC') || strcmp(data_name, 'Buffalo2025-IMAU') % Note their data does not resolve monthly data
         disp("Using ice elevation data from Gao et al. 2025")
-        filename_GEMB = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/Gao_et_al_2025/Annual_rates_grids_EPSG3413/Elevation_change_Greenland_GEMB_1994_2020.nc';
-        filename_GSFC = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/Gao_et_al_2025/Annual_rates_grids_EPSG3413/Elevation_change_Greenland_GSFC_1994_2020.nc';
-        filename_IMAU = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/Gao_et_al_2025/Annual_rates_grids_EPSG3413/Elevation_change_Greenland_IMAU_1994_2020.nc';
+        filename_GEMB = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/Gao_et_al_2025/Annual_rates_grids_EPSG3413/MB_Greenland_GEMB_1994_2021.nc';
+        filename_GSFC = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/Gao_et_al_2025/Annual_rates_grids_EPSG3413/MB_Greenland_GSFC_1994_2021.nc';
+        filename_IMAU = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/Gao_et_al_2025/Annual_rates_grids_EPSG3413/MB_Greenland_IMAU_1994_2020.nc';
 
         % Choose the correct filename based on data_name
         if strcmp(data_name, 'Buffalo2025-GEMB')
@@ -197,8 +197,12 @@ function [h_annual, dhdt_annual, dhdt_monthly, years, lat_sphere, long_sphere] =
     
     % Calculate the total change across all years, ignoring NaNs
     dhdt_total = sum(dhdt_annual, 3, 'omitnan');
-    
-    % Note: Ice mass change calculations removed - implement get_ice_mass_change function if needed
+
+    % Convert years to double precision for polyfit compatibility in get_ice_mass_change function
+    years = double(years);
+
+    % Calculate ice mass change in Gt
+    [dice_mass] = get_ice_mass_change(rhoi, X, Y, dhdt_annual, years, false);
     
     % Transform decimal years to yyyy-mm-dd
     % Extract the integer year
