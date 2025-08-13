@@ -1,6 +1,6 @@
-function [h_annual, dhdt_annual, dhdt_monthly, years, lat_sphere, long_sphere] = preprocess_ice_altimetry(data_name, plot_altimetry)
+function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long_sphere, X, Y] = preprocess_ice_altimetry(data_name, plot_altimetry)
     % preprocess_ice_altimetry.m
-    % Holly Han (created: July 25th, 2025; Last edited: July 25th, 2025).
+    % Holly Han (created: July 25th, 2025; Last edited: August 13th, 2025).
     % Preprocesses ice thickness and elevation change data from altimetry.
     %
     % Inputs:
@@ -11,9 +11,11 @@ function [h_annual, dhdt_annual, dhdt_monthly, years, lat_sphere, long_sphere] =
     %    - h_annual: ice thickness at annual time interval (m)
     %    - dhdt_annual: ice thickness change over at each year (m/yr)
     %    - dhdt_monthly: ice thickness change at monthly intervals (m/month)
-    %    - years: timearray on which 'h_annual' and 'dhdt_annual' are defined (yr)
+    %    - years_thickness: timearray on which 'h_annual' is defined (yr)
     %    - lat_sphere: latitude coordinates on sphere
     %    - long_sphere: longitude coordinates on sphere
+    %    - X: original X grid coordinates (m)
+    %    - Y: original Y grid coordinates (m)
     
     % Note: rhoo and rhoi should be defined as constants
     rhoo = 1000.0; % density of water (kg/m^3)
@@ -135,8 +137,8 @@ function [h_annual, dhdt_annual, dhdt_monthly, years, lat_sphere, long_sphere] =
 
     elseif strcmp(data_name, 'Buffalo2025-GEMB') || strcmp(data_name, 'Buffalo2025-GSFC') || strcmp(data_name, 'Buffalo2025-IMAU') % Note their data does not resolve monthly data
         disp("Using ice elevation data from Gao et al. 2025")
-        filename_GEMB = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/Gao_et_al_2025/Annual_rates_grids_EPSG3413/MB_Greenland_GEMB_1994_2021.nc';
-        filename_GSFC = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/Gao_et_al_2025/Annual_rates_grids_EPSG3413/MB_Greenland_GSFC_1994_2021.nc';
+        filename_GEMB = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/Gao_et_al_2025/Annual_rates_grids_EPSG3413/MB_Greenland_GEMB_1994_2020.nc'; %These are the same file but ncks-ed to remove the last year (2021)
+        filename_GSFC = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/Gao_et_al_2025/Annual_rates_grids_EPSG3413/MB_Greenland_GSFC_1994_2020.nc'; %These are the same file but ncks-ed to remove the last year (2021)
         filename_IMAU = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/Gao_et_al_2025/Annual_rates_grids_EPSG3413/MB_Greenland_IMAU_1994_2020.nc';
 
         % Choose the correct filename based on data_name
@@ -201,6 +203,10 @@ function [h_annual, dhdt_annual, dhdt_monthly, years, lat_sphere, long_sphere] =
     % Convert years to double precision for polyfit compatibility in get_ice_mass_change function
     years = double(years);
 
+    % Create years_thickness for thickness data (has nt+1 elements)
+    % years represents years for dhdt_annual, years_thickness represents years for h_annual
+    years_thickness = [years; years(end) + 1]; % Add one more year for the final thickness
+
     % Calculate ice mass change in Gt
     [dice_mass] = get_ice_mass_change(rhoi, X, Y, dhdt_annual, years, false);
     
@@ -239,14 +245,74 @@ function [h_annual, dhdt_annual, dhdt_monthly, years, lat_sphere, long_sphere] =
     r_earth = 6371000.; % radius of the earth consistent with the value used in ISSM
     [lat_sphere, long_sphere, dhdt_annual] = ellipsoid_to_sphere(lat_ellipsoid, long_ellipsoid, r_earth, dhdt_annual);
 
+    % Convert NaN values to zero (no change in ice thickness)
+    fprintf('Converting NaN values to zero...\n');
+    dhdt_annual(isnan(dhdt_annual)) = 0;
+    fprintf('After NaN conversion: dhdt_annual range = %.1f to %.1f m/yr\n', ...
+        min(dhdt_annual(:)), max(dhdt_annual(:)));
+    fprintf('=====================================\n');
+
     % Calculate total change across years for plotting
     dhdt_total = sum(dhdt_annual, 3, 'omitnan');
 
     % Create a time series of ice thickness
-    h_annual = zeros(size(dhdt_annual));
-    h_annual(:,:,end) = 1500; % mean average Greenland ice thickness
-    for t = length(years)-1 : -1 : 1
-        h_annual(:,:,t) = h_annual(:,:,t+1) - dhdt_annual(:,:,t); % Add dh to move backwards in time
+    % h_annual should have nt+1 time steps (thickness at start of each year)
+    h_annual = zeros(size(dhdt_annual, 1), size(dhdt_annual, 2), size(dhdt_annual, 3) + 1);
+
+    % Debug: Check dhdt_annual values
+    fprintf('=== DEBUG: dhdt_annual statistics ===\n');
+    fprintf('Size of dhdt_annual: %s\n', mat2str(size(dhdt_annual)));
+
+    % Check for NaN values
+    nan_count = sum(isnan(dhdt_annual(:)));
+    total_count = numel(dhdt_annual);
+    fprintf('NaN values: %d (%.2f%% of total)\n', nan_count, 100*nan_count/total_count);
+
+    % Calculate statistics for all values
+    fprintf('Min dhdt_annual: %.3f m/yr\n', min(min(dhdt_annual(:))));
+    fprintf('Max dhdt_annual: %.3f m/yr\n', max(max(dhdt_annual(:))));
+    fprintf('Mean dhdt_annual: %.3f m/yr\n', mean(mean(dhdt_annual(:))));
+    fprintf('Std dhdt_annual: %.3f m/yr\n', std(std(dhdt_annual(:))));
+
+    % Check cumulative loss
+    cumulative_loss = sum(dhdt_annual, 3, 'omitnan');
+    fprintf('Min cumulative loss: %.3f m\n', min(cumulative_loss(:), [], 'omitnan'));
+    fprintf('Max cumulative loss: %.3f m\n', max(cumulative_loss(:), [], 'omitnan'));
+    fprintf('Mean cumulative loss: %.3f m\n', mean(cumulative_loss(:), 'omitnan'));
+    fprintf('Std cumulative loss: %.3f m\n', std(cumulative_loss(:), 'omitnan'));
+
+    % Check how many pixels have cumulative loss > 1500m
+    pixels_over_1500m = sum(cumulative_loss(:) > 1500);
+    total_pixels = numel(cumulative_loss);
+    fprintf('Pixels with cumulative loss > 1500m: %d (%.2f%% of total)\n', pixels_over_1500m, 100*pixels_over_1500m/total_pixels);
+
+    % Create time series of ice thickness using forward integration
+    % Start with a realistic initial thickness and integrate forward
+    fprintf('=== Reconstructing ice thickness using forward integration approach ===\n');
+
+    % Set initial thickness (start of first year)
+    initial_thickness = 1500; % Start with 1500m as initial thickness
+    h_annual(:,:,1) = initial_thickness;
+
+    % Integrate forward: h(t+1) = h(t) + dhdt(t)
+    for t = 1:size(dhdt_annual,3)
+
+        % get indices of dhdt_annual values that are NaN
+        nan_indices_dhdt = find(isnan(dhdt_annual(:,:,t)));
+        if ~isempty(nan_indices_dhdt)
+            fprintf('dhdt_annual is NaN at %d indices\n', length(nan_indices_dhdt));
+        end
+
+        nan_indices_h = find(isnan(h_annual(:,:,t)));
+        if ~isempty(nan_indices_h)
+            fprintf('h_annual is NaN at %d indices\n', length(nan_indices_h));
+        end
+
+        % Update thickness
+        h_annual(:,:,t+1) = h_annual(:,:,t) + dhdt_annual(:,:,t);
+
+        fprintf('At step %d: dhdt_annual range = %.3f to %.3f m/yr\n', t, min(min(dhdt_annual(:,:,t))), max(max(dhdt_annual(:,:,t))));
+        fprintf('At step %d: h_annual range = %.3f to %.3f m\n', t+1, min(min(h_annual(:,:,t+1))), max(max(h_annual(:,:,t+1))));
     end
 
     h_annual = permute(h_annual, [2, 1, 3]); % flip the x and y axes
