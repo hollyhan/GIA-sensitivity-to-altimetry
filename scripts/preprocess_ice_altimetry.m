@@ -115,14 +115,32 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long
         disp("Using ice elevation data from DTU2025")
         filename = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/khan_et_al_2025/Greenland_dhdt_icevol_1kmgrid_DB.nc';
         fname_firn = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/khan_et_al_2025/Greenland_dhdt_firn_1kmgrid_DB.nc';
-        
+        fname_elas = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/khan_et_al_2025/Greenland_dhdt_elas_1kmgrid_DB.nc';
+        fname_GIA = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/altimetry/khan_et_al_2025/Greenland_GIA_1kmgrid_DB.nc';
+
         % Read the variables
         X = ncread(filename, 'x');       % East coordinate (km)
         Y = ncread(filename, 'y');       % North coordinate (km)
         Time = ncread(filename, 'time'); % Time in days since 2003-01-01
-        dhdt_monthly = ncread(filename, 'dhdt_vol'); % Mean monthly elevation change rate in ice equivalent height
+        dhdt_vol = ncread(filename, 'dhdt_vol'); % Mean monthly elevation change rate (m/month) in ice equivalent height, fill value is -9999
+        dhdt_firn = ncread(fname_firn, 'dhdt_firn'); % Mean monthly firn compaction rate (m/month), fill value is -9999
+        dhdt_elas = ncread(fname_elas, 'dhdt_elas'); % Elastic uplift correction in mm/month (time, y, x), fill value is -9999
+        dhdt_GIA = ncread(fname_GIA, 'dhdt_GIA'); % GIA correction in mm/yr (y, x), fill value is NaN
 
-        %dhdt_firn = ncread(fname_firn, 'dhdt_firn'); % Mean monthly elevation change rate in ice equivalent height
+        % Convert fill values to NaN
+        dhdt_vol(dhdt_vol == -9999) = NaN;
+        dhdt_firn(dhdt_firn == -9999) = NaN;
+        dhdt_elas(dhdt_elas == -9999) = NaN;
+
+        % Convert units in mm/time to m/month
+        dhdt_elas = dhdt_elas * 1e-3;
+        dhdt_GIA = (1/12) * dhdt_GIA * 1e-3;
+
+        % Calculate the total monthly change in mass (m/month)
+        dhdt_monthly = dhdt_vol - dhdt_firn + dhdt_elas + dhdt_GIA;
+
+        % Convert fill values to NaN (redundant but to be safe)
+        dhdt_monthly(dhdt_monthly == -9999) = NaN;
 
         % Convert time from days since 2003-01-01 to decimal years
         reference_date = datetime(2003, 1, 1);
@@ -133,10 +151,6 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long
         time_mask = Time <= 2023.0; % Include only data up to end of 2022
         Time = Time(time_mask);
         dhdt_monthly = dhdt_monthly(:, :, time_mask);
-        %dhdt_firn = dhdt_firn(:, :, time_mask);
-        
-        % Get uncorrected dhdt_monthly - comment out for now
-        %dhdt_monthly = dhdt_water + dhdt_firn;
 
         % Define years vector for output from actual Time data
         years = unique(floor(Time));
