@@ -75,7 +75,8 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long
         % Isolate month-to-month changes
         dhdt_monthly = diff(dh_corr,1,3); % get first difference along the 'time' axis
         dhdt_monthly = dhdt_monthly(:, :, 12:end); % get data from 1993-2023 (i.e. skip the first year)
-    
+        Time = Time(12:end);
+
         % Convert time from seconds since 1950-01-01 to decimal years
         reference_date = datetime(1950, 1, 1);
         Time_datetime = reference_date + seconds(Time);
@@ -98,9 +99,13 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long
         % Convert dhdt from water equivalent to ice thickness change
         dhdt_monthly = dhdt_water .* (rhoo / rhoi);
     
+        % Filter data to end of 2022 (exclude incomplete 2023 data)
+        time_mask = Time <= 2023.0; % Include only data up to end of 2022
+        Time = Time(time_mask);
+        dhdt_monthly = dhdt_monthly(:, :, time_mask);
+
         % Define years vector for output from actual Time data
-        years = 2003:2022; % Note the last year is skipped because it's incomplete
-        dhdt_monthly = dhdt_monthly(:, :, 1:240);
+        years = unique(floor(Time));
     
         % convert units to meters
         X = X.*1000.0;
@@ -116,6 +121,7 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long
         Y = ncread(filename, 'y');       % North coordinate (km)
         Time = ncread(filename, 'time'); % Time in days since 2003-01-01
         dhdt_monthly = ncread(filename, 'dhdt_vol'); % Mean monthly elevation change rate in ice equivalent height
+
         %dhdt_firn = ncread(fname_firn, 'dhdt_firn'); % Mean monthly elevation change rate in ice equivalent height
 
         % Convert time from days since 2003-01-01 to decimal years
@@ -179,7 +185,7 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long
         for i = 1:num_years
             year_mask = floor(Time) == unique_years(i);
             if any(year_mask)
-                dhdt_annual(:,:,i) = mean(dhdt_monthly(:,:,year_mask), 3, 'omitnan');
+                dhdt_annual(:,:,i) = mean(dhdt_monthly(:,:,year_mask), 3, 'omitnan')*12;
             end
         end
         years = unique_years;
@@ -208,8 +214,13 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long
     years_thickness = [years; years(end) + 1]; % Add one more year for the final thickness
 
     % Calculate ice mass change in Gt
-    [dice_mass] = get_ice_mass_change(rhoi, X, Y, dhdt_annual, years, false);
-    
+    disp("Calculating ice mass change based on annual data")
+    [dice_mass_annual] = get_ice_mass_change(rhoi, X, Y, dhdt_annual, years, false);
+
+    %disp("Calculating ice mass change based on monthly data - Debug")
+    %[dice_mass_monthly] = get_ice_mass_change(rhoi, X, Y, dhdt_monthly, Time, false); % check based on the monthly data for the DTU data
+    %[dice_mass_monthly] = get_ice_mass_change(rhoi, X, Y, dhdt_monthly, Time_years(2:end), false); % check based on the monthly data for MEaSUREs
+
     % Transform decimal years to yyyy-mm-dd
     % Extract the integer year
     years_part = floor(Time);
