@@ -35,7 +35,9 @@ function [dice_mass] = get_ice_mass_change(rhoi, xcoords, ycoords, dhdt, time_ar
     end
     
     if ~isempty(time_array) && size(dhdt, 3) > 1 && size(dhdt, 3) ~= length(time_array)
-        error("The length of the input 'time_array' and length of 'time' in 'dhdt' must be the same")
+        disp(['the length of ''time array'' is: ', num2str(length(time_array))])
+        disp(['the length of ''time'' in ''dhdt'' is: ', num2str(size(dhdt, 3))])
+        error('The length of the input ''time_array'' and length of ''time'' in ''dhdt'' must be the same.')
     end
 
     % Calculate grid cell area (assuming polar stereographic grid)
