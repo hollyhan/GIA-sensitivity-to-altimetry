@@ -1,5 +1,5 @@
-function [mask_resampled] = resample_mask_to_target_grid_fast(mask_data, mask_lat, mask_lon, target_lat, target_lon)
-    % resample_mask_to_target_grid_fast - Mask resampling using spatial binning
+function [mask_resampled] = resample_mask_to_target_grid(mask_data, mask_lat, mask_lon, target_lat, target_lon)
+    % resample_mask_to_target_grid - Mask resampling using spatial binning
     %
     % Inputs:
     %   mask_data: binary mask data [lat x lon x time] or [lat x lon] 

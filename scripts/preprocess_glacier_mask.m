@@ -1,12 +1,11 @@
-function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_glacier_mask(target_resolution, target_bounds)
+function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_glacier_mask(target_years)
     % preprocess_glacier_mask.m
-    % Holly Han (created: July 29th, 2025; Last edited: July 29th, 2025).
+    % Holly Han (created: July 29th, 2025; Last edited: August 19th, 2025).
     % Processes Chad Green's glacier mask datasets.
     % Data source: https://data.nsidc.earthdatacloud.nasa.gov/nsidc-cumulus-prod-protected/MEASURES/NSIDC-0793/1/1972/09/15/NSIDC-0793_19720915-20220215_V01.0.nc
     %
     % Inputs:
-    %   - target_resolution: Target grid resolution in degrees (optional, default: 0.045)
-    %   - target_bounds: [min_lat, max_lat, min_lon, max_lon] for common grid (optional)
+    %   - target_years: Target years to extract (optional, default: 1995-1996)
     % Outputs:
     %    - ice_masks: Ice mask data [lat x lon x years]
     %    - years: Year vector
@@ -17,10 +16,7 @@ function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_gla
     
     % Set default parameters
     if nargin < 1
-        target_resolution = 0.045; % Default resolution in degrees
-    end
-    if nargin < 2
-        target_bounds = []; % Will use data bounds
+        target_years = 1993:2022; % Default years to extract
     end
     
     % File path to Chad Green's glacier mask dataset
@@ -46,8 +42,6 @@ function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_gla
         years_since_1900 = days_since_1900 / 365.25; % Account for leap years
         years_all = floor(1900 + years_since_1900);
         
-        % Filter to desired years (1995-2022) to reduce memory usage
-        target_years = 1995:1996;
         time_indices = [];
         years = [];
         
@@ -179,10 +173,10 @@ function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_gla
     
     % Debug: check dimensions
     disp(['ice_masks size after permute: ', num2str(size(ice_masks))]);
-    disp(['x_orig size: ', num2str(size(x_orig))]);
-    disp(['y_orig size: ', num2str(size(y_orig))]);
-    disp(['X_2d size: ', num2str(size(X_2d))]);
-    disp(['Y_2d size: ', num2str(size(Y_2d))]);
+    %disp(['x_orig size: ', num2str(size(x_orig))]);
+    %disp(['y_orig size: ', num2str(size(y_orig))]);
+    %disp(['X_2d size: ', num2str(size(X_2d))]);
+    %disp(['Y_2d size: ', num2str(size(Y_2d))]);
     
     % Data already filtered to target years during reading
     
