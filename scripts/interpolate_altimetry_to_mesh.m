@@ -1,30 +1,31 @@
-function [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(h_annual, lat_sphere, long_sphere, years_altimetry, md, X, Y, dhdt_annual, ice_mask)
+function [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(h_annual, lat_sphere, long_sphere, years_dhdt, md, X, Y, dhdt_annual)
     % interpolate_altimetry_to_mesh - Interpolates annual ice thickness data onto a global mesh with mass conservation.
     %
     % Usage:
-    %   [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(h_annual, lat_sphere, long_sphere, years_altimetry, md, X, Y, dhdt_annual, ice_mask)
+    %   [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(h_annual, lat_sphere, long_sphere, years_dhdt, md, X, Y, dhdt_annual)
     %
     % Inputs:
     %   h_annual:         Annual ice thickness data [ny x nx x nt] or [nx x ny x nt+1].
     %   lat_sphere:       Latitude coordinates of source data [ny x nx].
     %   long_sphere:      Longitude coordinates of source data [ny x nx].
-    %   years_altimetry:  Time vector corresponding to h_annual [nt x 1] or [1 x nt].
+    %   years_dhdt:       Time vector corresponding to dhdt_annual [nt x 1] or [1 x nt].
     %   md:        Target global mesh model object.
     %   X, Y:             Original altimetry grid coordinates [1 x nx], [1 x ny] - REQUIRED for mass conservation.
-    %   dhdt_annual:      (Optional) Annual elevation change data for mass conservation [ny x nx x nt].
-    %   ice_mask:         (Optional) Ice mask on same grid as h_annual to restrict interpolation.
+    %   dhdt_annual:      Annual elevation change data for mass conservation [ny x nx x nt].
     %
     % Outputs:
     %   md_updated: Updated mesh model with interpolated thickness in
     %                      md.masstransport.spcthickness.
     %   mass_conservation_report: Structure with mass conservation statistics.
+    %
+    % Notes: Recommended to use dhdt_annual for mass conservation.
 
     rhoi = 917.0; % Ice density in kg/m^3
 
     disp('Interpolating ice altimetry data onto the global mesh...');
 
     % --- Input Validation ---
-    if ~exist('h_annual', 'var') || ~exist('lat_sphere', 'var') || ~exist('long_sphere', 'var') || ~exist('years_altimetry', 'var') || ~exist('md', 'var') || ~exist('X', 'var') || ~exist('Y', 'var')
+    if ~exist('h_annual', 'var') || ~exist('lat_sphere', 'var') || ~exist('long_sphere', 'var') || ~exist('years_dhdt', 'var') || ~exist('md', 'var') || ~exist('X', 'var') || ~exist('Y', 'var')
         error('interpolate_altimetry_to_mesh: Missing required input arguments. X and Y are required for mass conservation.');
     end
     
@@ -34,13 +35,6 @@ function [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(
         disp('Mass conservation enabled - using dhdt_annual for annual mass change conservation.');
     else
         disp('Mass conservation enabled - using h_annual for total ice mass conservation.');
-    end
-    
-    % Check for optional ice mask
-    use_ice_mask = false;
-    if nargin >= 9 && exist('ice_mask', 'var') && ~isempty(ice_mask)
-        use_ice_mask = true;
-        disp('Ice mask provided - will restrict interpolation to ice-covered areas.');
     end
 
     % --- Prepare Data ---
@@ -55,10 +49,21 @@ function [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(
         error('interpolate_altimetry_to_mesh: h_annual spatial dimensions do not match coordinates.');
     end
 
-    nt_h_annual = size(h_annual,3);
-    nt_dhdt_annual = size(dhdt_annual,3);
-    if length(years_altimetry) ~= nt_h_annual
-        error('interpolate_altimetry_to_mesh: Length of years_altimetry must match time dimension of h_annual.');
+    % Determine what to interpolate based on available data
+    if exist('dhdt_annual', 'var') && ~isempty(dhdt_annual)
+        fprintf('Interpolating dhdt_annual (elevation change) directly...\n');
+        data_to_interpolate = dhdt_annual;
+        nt = size(dhdt_annual,3);
+        data_type = 'elevation change';
+    else
+        fprintf('Interpolating h_annual (ice thickness) directly...\n');
+        data_to_interpolate = h_annual;
+        nt = size(dhdt_annual,3)+1;
+        data_type = 'ice thickness';
+    end
+
+    if size(data_to_interpolate,3) ~= nt
+        error('interpolate_altimetry_to_mesh: Length of years must match time dimension of the data_to_interpolate.');
     end
 
     % Flatten source coordinates
@@ -71,8 +76,8 @@ function [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(
     long_target = md.mesh.long;
     
     % Initialize the spcthickness field with proper dimensions
-    md.masstransport.spcthickness = zeros(n_target_vertices + 1, nt_h_annual);
-    fprintf('Initialized spcthickness field: %d vertices x %d time steps\n', n_target_vertices, nt_h_annual);
+    md.masstransport.spcthickness = zeros(n_target_vertices + 1, size(dhdt_annual,3)+1);
+    fprintf('Initialized spcthickness field: %d vertices x %d time steps\n', n_target_vertices, size(dhdt_annual,3)+1);
     
     % CRITICAL: Define data coverage bounds to prevent global extrapolation
     % Get actual bounds of altimetry data
@@ -208,21 +213,6 @@ function [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(
         fprintf('Mesh area calculation complete.\n\n');
     end
 
-    % Determine what to interpolate based on available data
-    if exist('dhdt_annual', 'var') && ~isempty(dhdt_annual)
-        fprintf('Interpolating dhdt_annual (elevation change) directly...\n');
-        data_to_interpolate = dhdt_annual;
-        data_type = 'elevation change';
-        fprintf('Interpolating %d time steps of dhdt_annual...\n', nt_dhdt_annual);
-        nt = nt_dhdt_annual;
-    else
-        fprintf('Interpolating h_annual (ice thickness) directly...\n');
-        data_to_interpolate = h_annual;
-        data_type = 'ice thickness';
-        fprintf('Interpolating %d time steps of h_annual...\n', nt_h_annual);
-        nt = nt_h_annual;
-    end
-
     % Initialize the interpolated data array
     data_interp_array = zeros(n_target_vertices, nt);
 
@@ -233,13 +223,6 @@ function [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(
 
         % Identify valid data points for this slice
         valid_mask = ~isnan(lat_source_flat) & ~isnan(long_source_flat) & ~isnan(data_flat);
-
-        % Apply ice mask if provided
-        if use_ice_mask
-            ice_mask_slice = ice_mask(:,:,min(t, size(ice_mask, 3)));
-            ice_mask_flat = ice_mask_slice(:);
-            valid_mask = valid_mask & ice_mask_flat > 0.5; % Apply ice mask threshold
-        end
 
         if sum(valid_mask) < 3
             warning('interpolate_altimetry_to_mesh: Time step %d: Not enough valid points (%d) for interpolation.', t, sum(valid_mask));
@@ -297,9 +280,8 @@ function [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(
 
             % Store interpolated values only within coverage area
             data_interp_slice(data_coverage_mask) = data_coverage;
-
-            fprintf('  Interpolated at %d vertices (%.1f%% of mesh), %.1f%% have %s > 0\n', ...
-                    length(data_coverage), 100*length(data_coverage)/n_target_vertices, ...
+            fprintf('Time step %d: Interpolated at %d vertices (%.1f%% of mesh), %.1f%% have %s > 0\n', ...
+                    t, length(data_coverage), 100*length(data_coverage)/n_target_vertices, ...
                     100*sum(abs(data_coverage) > 1e-6)/length(data_coverage), data_type);
         else
             fprintf('  WARNING: No mesh vertices within data coverage area!\n');
@@ -542,7 +524,7 @@ function [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(
         fprintf('Converting interpolated dhdt_annual to h_annual time series...\n');
 
         % Create new thickness field by working backwards from assumed final thickness
-        h_reconstructed = zeros(n_target_vertices, nt_h_annual);
+        h_reconstructed = zeros(n_target_vertices, nt);
 
         % Set final thickness to a reasonable estimate (using mean from original data if available)
         if ~isempty(h_annual)
@@ -561,7 +543,7 @@ function [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(
 
                  % Work forward through time using dhdt to reconstruct thickness
          h_reconstructed(:, 1) = mean_initial_thickness;
-         for t = 1:nt_dhdt_annual
+         for t = 1:nt
              h_reconstructed(:, t+1) = h_reconstructed(:, t) + data_interp_array(:,t); % Add dhdt to go forward in time
 
             % Ensure thickness doesn't go negative where we expect ice
@@ -582,7 +564,8 @@ function [md_updated, mass_conservation_report] = interpolate_altimetry_to_mesh(
     end
 
     % Add the time array in the last row of spcthickness
-    md.masstransport.spcthickness(end, :) = years_altimetry(:)'; % Ensure time is a row vector
+    years_h_annual = [years_dhdt(1)-1, years_dhdt];
+    md.masstransport.spcthickness(end, :) = years_h_annual(:)'; % Ensure time is a row vector
 
     % Return the updated model
     md_updated = md;
