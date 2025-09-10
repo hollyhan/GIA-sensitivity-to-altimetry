@@ -1,4 +1,4 @@
-function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long_sphere, X, Y] = preprocess_ice_altimetry(data_name, plot_altimetry)
+function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long_sphere, X, Y, X_2d, Y_2d] = preprocess_ice_altimetry(data_name, plot_altimetry)
     % preprocess_ice_altimetry.m
     % Holly Han (created: July 25th, 2025; Last edited: August 13th, 2025).
     % Preprocesses ice thickness and elevation change data from altimetry.
@@ -16,6 +16,8 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long
     %    - long_sphere: longitude coordinates on sphere
     %    - X: original X grid coordinates (m)
     %    - Y: original Y grid coordinates (m)
+    %    - X_2d: original X grid coordinates in meshgrid format (m)
+    %    - Y_2d: original Y grid coordinates in meshgrid format (m)
     
     % Note: rhoo and rhoi should be defined as constants
     rhoo = 1000.0; % density of water (kg/m^3)

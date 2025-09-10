@@ -27,8 +27,6 @@ function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_gla
         error('Glacier mask file not found: %s', mask_file);
     end
     
-    disp('Loading Chad Green glacier mask data...');
-    
     % Read the dataset
     try
         % Read coordinates
@@ -57,9 +55,9 @@ function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_gla
         disp(['Time indices to read: ', num2str(time_indices)]);
         
         % Debug time information
-        disp(['Total time values in file: ', num2str(length(days_since_1900))]);
-        disp(['Year range in file: ', num2str(min(years_all)), ' to ', num2str(max(years_all))]);
-        disp(['Max time index we want to read: ', num2str(max(time_indices))]);
+        %disp(['Total time values in file: ', num2str(length(days_since_1900))]);
+        %disp(['Year range in file: ', num2str(min(years_all)), ' to ', num2str(max(years_all))]);
+        %disp(['Max time index we want to read: ', num2str(max(time_indices))]);
         
         % Check if our indices are valid
         if max(time_indices) > length(days_since_1900)
@@ -97,9 +95,9 @@ function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_gla
             
             % First, let's check the actual dimensions of the ice variable
             info = ncinfo(mask_file, 'ice');
-            disp(['Ice variable dimensions: ', num2str(info.Size)]);
-            disp(['Expected: [time=594, y=23334, x=13333]']);
-            disp(['Coordinate lengths: x=', num2str(length(x_orig)), ', y=', num2str(length(y_orig))]);
+            %disp(['Ice variable dimensions: ', num2str(info.Size)]);
+            %disp(['Expected: [time=594, y=23334, x=13333]']);
+            %disp(['Coordinate lengths: x=', num2str(length(x_orig)), ', y=', num2str(length(y_orig))]);
             
             for i = 1:length(time_indices)
                 disp(['Reading time slice ', num2str(i), ' (index ', num2str(time_indices(i)), ', year ', num2str(years(i)), ')']);
@@ -123,17 +121,17 @@ function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_gla
         disp(['ice_data size (raw): ', num2str(size(ice_data))]);
         
         % Check if we have the right coordinate dimensions
-        disp(['Expected dimensions based on coordinates:']);
-        disp(['  x coordinates: ', num2str(length(x_orig))]);
-        disp(['  y coordinates: ', num2str(length(y_orig))]);
-        disp(['  time indices selected: ', num2str(length(time_indices))]);
-        disp(['  Expected ice data: [time, y, x] = [', num2str(length(time_indices)), ', ', num2str(length(y_orig)), ', ', num2str(length(x_orig)), ']']);
+        %disp(['Expected dimensions based on coordinates:']);
+        %disp(['  x coordinates: ', num2str(length(x_orig))]);
+        %disp(['  y coordinates: ', num2str(length(y_orig))]);
+        %disp(['  time indices selected: ', num2str(length(time_indices))]);
+        %disp(['  Expected ice data: [time, y, x] = [', num2str(length(time_indices)), ', ', num2str(length(y_orig)), ', ', num2str(length(x_orig)), ']']);
         
         % Check what we actually read
-        disp(['Actual ice_data size: ', num2str(size(ice_data))]);
+        %disp(['Actual ice_data size: ', num2str(size(ice_data))]);
         
         % The issue might be that we have too many time indices
-        disp(['Time indices used: ', num2str(time_indices)]);
+        %disp(['Time indices used: ', num2str(time_indices)]);
         disp(['Years requested: ', num2str(years)]);
         
     catch ME
@@ -169,7 +167,7 @@ function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_gla
     
     % Process ice mask data
     % ice_data is ice(time, y, x), we want [y, x, time] for MATLAB convention
-            ice_masks = permute(ice_data, [2, 1, 3]);
+    ice_masks = permute(ice_data, [2, 1, 3]);
     
     % Debug: check dimensions
     disp(['ice_masks size after permute: ', num2str(size(ice_masks))]);

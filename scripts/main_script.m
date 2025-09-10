@@ -1,8 +1,9 @@
 %% Define which steps to run
-steps=[1];
+%steps=[6;7;8;9];
+steps = 'refine_mesh_with_gnss';
 
 addpath('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/scripts/mesh');
-% Load settings
+% Load settingsn
 run('settings_observation_data.m');
 
 
@@ -25,17 +26,14 @@ end
 if any(steps==2)
     % Process altimetry datasets without firn correction
     disp('=== Processing altimetry data ===');
-    [h_annual_1, dhdt_annual_1, dhdt_monthly_1, years_altimetry_1, lat_sphere_1, long_sphere_1, X_1, Y_1] = preprocess_ice_altimetry('measureItsLive-GEMB', false);
-    [h_annual_2, dhdt_annual_2, dhdt_monthly_2, years_altimetry_2, lat_sphere_2, long_sphere_2, X_2, Y_2] = preprocess_ice_altimetry('measureItsLive-GSFC', false);
-    [h_annual_3, dhdt_annual_3, dhdt_monthly_3, years_altimetry_3, lat_sphere_3, long_sphere_3, X_3, Y_3] = preprocess_ice_altimetry('DTU2016', false);
-    [h_annual_4, dhdt_annual_4, dhdt_monthly_4, years_altimetry_4, lat_sphere_4, long_sphere_4, X_4, Y_4] = preprocess_ice_altimetry('DTU2025', false);% DTU data reports-4186.2778 Gt between 2003-2022-12-31 and 4701 Gt if not correcting for firn, Elastic uplift and GIA
-    [h_annual_5, dhdt_annual_5, dhdt_monthly_5, years_altimetry_5, lat_sphere_5, long_sphere_5, X_5, Y_5] = preprocess_ice_altimetry('Buffalo2025-GEMB', false);
-    [h_annual_6, dhdt_annual_6, dhdt_monthly_6, years_altimetry_6, lat_sphere_6, long_sphere_6, X_6, Y_6] = preprocess_ice_altimetry('Buffalo2025-GSFC', false);
-    [h_annual_7, dhdt_annual_7, dhdt_monthly_7, years_altimetry_7, lat_sphere_7, long_sphere_7, X_7, Y_7] = preprocess_ice_altimetry('Buffalo2025-IMAU', false);
+    [h_annual_1, dhdt_annual_1, dhdt_monthly_1, years_altimetry_1, lat_sphere_1, long_sphere_1, X_1, Y_1, x_3413_1, y_3413_1] = preprocess_ice_altimetry('measureItsLive-GEMB', false);
+    [h_annual_2, dhdt_annual_2, dhdt_monthly_2, years_altimetry_2, lat_sphere_2, long_sphere_2, X_2, Y_2, x_3413_2, y_3413_2] = preprocess_ice_altimetry('measureItsLive-GSFC', false);
+    [h_annual_3, dhdt_annual_3, dhdt_monthly_3, years_altimetry_3, lat_sphere_3, long_sphere_3, X_3, Y_3, x_3413_3, y_3413_3] = preprocess_ice_altimetry('DTU2016', false);
+    [h_annual_4, dhdt_annual_4, dhdt_monthly_4, years_altimetry_4, lat_sphere_4, long_sphere_4, X_4, Y_4, x_3413_4, y_3413_4] = preprocess_ice_altimetry('DTU2025', false);% DTU data reports-4186.2778 Gt between 2003-2022-12-31 and 4701 Gt if not correcting for firn, Elastic uplift and GIA
+    [h_annual_5, dhdt_annual_5, dhdt_monthly_5, years_altimetry_5, lat_sphere_5, long_sphere_5, X_5, Y_5, x_3413_5, y_3413_5] = preprocess_ice_altimetry('Buffalo2025-GEMB', false);
+    [h_annual_6, dhdt_annual_6, dhdt_monthly_6, years_altimetry_6, lat_sphere_6, long_sphere_6, X_6, Y_6, x_3413_6, y_3413_6] = preprocess_ice_altimetry('Buffalo2025-GSFC', false);
+    [h_annual_7, dhdt_annual_7, dhdt_monthly_7, years_altimetry_7, lat_sphere_7, long_sphere_7, X_7, Y_7, x_3413_7, y_3413_7] = preprocess_ice_altimetry('Buffalo2025-IMAU', false);
     disp('====================================');
-
-    years_altimetry = [years_altimetry_1; years_altimetry_2; years_altimetry_3; years_altimetry_4; years_altimetry_5; years_altimetry_6; years_altimetry_7];
-    years_altimetry = unique(years_altimetry);
 
     % Debug: compare if dhdt derived from h_annual and dhdt_annual are the same
     debug_dhdt = false;
@@ -73,105 +71,454 @@ if any(steps==2)
 end
 
 if any(steps==3)
-    % Process firn model datasets
-    disp('=== Processing firn model data ===');
-    [dfac_annual_1, dfac_monthly_1, years_firn_1, lat_sphere_firn_1, long_sphere_firn_1] = preprocess_firn_model('GEMB'); % preprocessed for measureItsLive
-    [dfac_annual_2, dfac_monthly_2, years_firn_2, lat_sphere_firn_2, long_sphere_firn_2] = preprocess_firn_model('GSFC'); % preprocessed for measureItsLive
-    [dfac_annual_3, dfac_monthly_3, years_firn_3, lat_sphere_firn_3, long_sphere_firn_3] = preprocess_firn_model('RACMO2.3p2'); % preprocessed for DTU2025
-    disp('====================================');
-end
-
-if any(steps==4)
     % Process glacier mask datasets (returns native high-resolution mask on spherical geographic coordinates)
     disp('=== Processing glacier mask data and apply the mask to the altimetry datasets ===');
-    disp('---- Altimetry Dataset: MeaSURES ITS_LIVE ----')
 
     % Find overlapping years between the mask and altimetry data
-    yrs_mask = 1985:2022; % manually defined reliable data years based on the metadata
-    yrs_overlap = intersect(years_altimetry_1, yrs_mask);
-    disp(['Dataset 1 (measureItsLive): mask years ', num2str(yrs_overlap(1)), '-', num2str(yrs_overlap(end))]);
+    yrs_mask = 2022; %1985:2022; % manually defined reliable data years based on the metadata
+    % For dhdt, use timestamps starting from the second year (since dhdt = h(t1) - h(t0))
+    years_altimetry = [years_altimetry_1(2:end); years_altimetry_2(2:end); years_altimetry_3(2:end); years_altimetry_4(2:end); years_altimetry_5(2:end); years_altimetry_6(2:end); years_altimetry_7(2:end)];
+    years_altimetry = unique(years_altimetry);
+    yrs_total_overlap = intersect(years_altimetry, yrs_mask);
+    data_names = {'measureItsLive', 'DTU', 'Buffalo'};
+    data_sets = {dhdt_annual_1, dhdt_annual_2};%, dhdt_annual_3, dhdt_annual_4, dhdt_annual_5, dhdt_annual_6, dhdt_annual_7};
 
     % Process mask year-by-year to avoid memory issues
-    h_masked = zeros(size(h_annual_1,1), size(h_annual_1,2), length(yrs_overlap));
-    for n = 1:length(yrs_overlap)
-        % Extract the native mask data
-        [mask, mask_year(n), lat_mask, lon_mask, x_mask, y_mask] = preprocess_glacier_mask(yrs_overlap(n));
-
-        % Resample onto the altimetry grid
-        disp('=== Resampling glacier mask to each altimetry dataset ==='); % This part needs to be debugged because ice_masks are processed in parts
-        mask_resampled = resample_mask_to_target_grid(mask, lat_mask, lon_mask, lat_sphere_1, long_sphere_1);
-        mask_resampled = double(mask_resampled); % convert from logical to numeric array
-
-        % Mask thickness data
-        h_masked(:,:,n) = h_annual_1(:,:,n).*mask_resampled;
+    dhdt_masked = cell(length(data_sets), 1);
+    dhdt_masked_years = cell(length(data_sets), 1); % Add timetags for each dataset
+    
+    % Pre-allocate with NaN to track which years have data
+    for k = 1:length(data_sets)
+        dhdt_masked{k} = NaN(size(data_sets{k},1), size(data_sets{k},2), length(yrs_total_overlap));
+        dhdt_masked_years{k} = []; % Initialize empty array for years
     end
+    
+    % Initialize counters for each dataset group
+    a = 1; b = 1; c = 1;
+    for n = 2:length(yrs_total_overlap)
+        % Extract the native mask data
+        if n == 2
+            % masks from two consecutive years are needed to derive a union mask
+            target_yrs = [yrs_total_overlap(1):yrs_total_overlap(2)];
+        else
+            target_yrs = yrs_total_overlap(n);
+        end
 
-    % Derive dhdt from h_masked
-    dhdt_masked = zeros(size(h_masked,1), size(h_masked,2), length(yrs_overlap)-1);
-    for m = 1:length(yrs_overlap)-1
-        dhdt_masked(:,:,m) = h_masked(:,:,m+1) - h_masked(:,:,m); % This is the same as dhdt_annual_1 as benchmarked in step 2
+        disp(['== Processing mask for year ', num2str(target_yrs), '==']);
+        [mask, mask_year, lat_mask, lon_mask, x_mask, y_mask] = preprocess_glacier_mask(target_yrs);
 
-        plot_mask = false;
-        if plot_mask
-            np = 64; % Number of colors
-            blue_to_white = [linspace(0,1,np/2)', linspace(0,1,np/2)', ones(np/2,1)];
-            white_to_red = [ones(np/2,1), linspace(1,0,np/2)', linspace(1,0,np/2)'];
-            custom_cmap = [blue_to_white; white_to_red];
+        % Calculate union mask
+        if n == 2
+            mask_union = mask(:,:,1) | mask(:,:,2);  % Logical OR for union
+            mask_old = mask(:,:,2);
+        else
+            mask_union = mask | mask_old;  % Logical OR for union
+            mask_old = mask;
+        end
 
-            % For pcolor, we need to extract 1D coordinate vectors
-            % Take the first row and first column as representative vectors
-            lat_vec = lat_sphere_1(:,1);  % First column as latitude vector
-            lon_vec = long_sphere_1(1,:); % First row as longitude vector
-
-            figure;
-            data = dhdt_masked(:,:,n);
-            pcolor(lon_vec,lat_vec, data);
-            %pcolor(lon_vec, lat_vec, mask_resampled);
-            shading flat;
-            colorbar;
-            title(sprintf('masked dhdt between year %d and %d', yrs_overlap(m), yrs_overlap(m+1)));
-            xlabel('Longitude', 'FontSize', 14);
-            ylabel('Latitude', 'FontSize', 14);
-            set(gca, 'FontSize', 14);
-            colormap(flip(custom_cmap))%
-            caxis([-1 1])
+        for k = 1:length(data_names)
+            if strcmp(data_names{k}, 'measureItsLive')
+                % check the overlapping years between the mask and the measureItsLive data
+                if ismember(yrs_total_overlap(n), years_altimetry_1(2:end))
+                    disp('= Resampling glacier mask to the measureItsLive grid =');
+                    mask_resampled = resample_mask_to_target_grid_xy(mask_union, x_mask, y_mask, x_3413_2, y_3413_2);
+                    mask_resampled = double(mask_resampled); % convert from logical to numeric array
+`
+                    % Mask the dhdt data
+                    dhdt_masked{1}(:,:,a) = data_sets{1}(:,:,a).*mask_resampled; % measureItsLive-GEMB
+                    dhdt_masked{2}(:,:,a) = data_sets{2}(:,:,a).*mask_resampled; % measureItsLive-GSFC
+                    dhdt_masked_years{1}(a) = yrs_total_overlap(n); % Store year for dataset 1
+                    dhdt_masked_years{2}(a) = yrs_total_overlap(n); % Store year for dataset 2
+                    a = a + 1;
+                end
+            elseif strcmp(data_names{k}, 'DTU')
+                if ismember(yrs_total_overlap(n), years_altimetry_3(2:end))
+                    disp('= Resampling glacier mask to the DTU grid =');
+                    mask_resampled = resample_mask_to_target_grid_xy(mask_union, x_mask, y_mask, x_3413_3, y_3413_3);
+                    mask_resampled = double(mask_resampled); % convert from logical to numeric array
+                    dhdt_masked{3}(:,:,b) = data_sets{3}(:,:,b).*mask_resampled; % DTU2016
+                    dhdt_masked{4}(:,:,b) = data_sets{4}(:,:,b).*mask_resampled; % DTU2025
+                    dhdt_masked_years{3}(b) = yrs_total_overlap(n); % Store year for dataset 3
+                    dhdt_masked_years{4}(b) = yrs_total_overlap(n); % Store year for dataset 4
+                    b = b + 1;
+                end
+            elseif strcmp(data_names{k}, 'Buffalo')
+                if ismember(yrs_total_overlap(n), years_altimetry_5(2:end))
+                    disp('= Resampling glacier mask to the Buffalo grid =');
+                    mask_resampled = resample_mask_to_target_grid_xy(mask_union, x_mask, y_mask, x_3413_5, y_3413_5);
+                    mask_resampled = double(mask_resampled); % convert from logical to numeric array
+                    dhdt_masked{5}(:,:,c) = data_sets{5}(:,:,c).*mask_resampled; % Buffalo2025-GEMB
+                    dhdt_masked{6}(:,:,c) = data_sets{6}(:,:,c).*mask_resampled; % Buffalo2025-GSFC
+                    dhdt_masked{7}(:,:,c) = data_sets{7}(:,:,c).*mask_resampled; % Buffalo2025-IMAU
+                    dhdt_masked_years{5}(c) = yrs_total_overlap(n); % Store year for dataset 5
+                    dhdt_masked_years{6}(c) = yrs_total_overlap(n); % Store year for dataset 6
+                    dhdt_masked_years{7}(c) = yrs_total_overlap(n); % Store year for dataset 7
+                    c = c + 1;
+                end
+            end  
         end
     end
+
+    % Remove NaN slices and squeeze the arrays
+    disp('=== Cleaning up masked data arrays ===');
+    for k = 1:length(data_sets)
+        % Find which slices have actual data (not all NaN)
+        valid_slices = false(1, size(dhdt_masked{k}, 3));
+        for n = 1:size(dhdt_masked{k}, 3)
+            if ~all(isnan(dhdt_masked{k}(:,:,n)), 'all')
+                valid_slices(n) = true;
+            end
+        end
+     
+        % Keep only valid slices
+        dhdt_masked{k} = dhdt_masked{k}(:,:,valid_slices);
+        dhdt_masked_years{k} = dhdt_masked_years{k}(valid_slices); % Also clean up year array
+        disp(['Dataset ', num2str(k), ': kept ', num2str(sum(valid_slices)), ' out of ', num2str(length(valid_slices)), ' time slices']);
+    end
+
+    % DEBUG: Display summary of masked dhdt data
+    for k = 1:length(data_sets)
+        if ~isempty(dhdt_masked{k})
+            nt = size(dhdt_masked{k}, 3);
+            disp(['  Years: ', num2str(dhdt_masked_years{k}(1)), ' to ', num2str(dhdt_masked_years{k}(end))]);
+            for m = 1:nt
+                disp(['  dhdt range (min/max) at time ', num2str(m), ': ', num2str(min(min(dhdt_masked{k}(:,:,m)))), ' to ', num2str(max(max(dhdt_masked{k}(:,:,m)))), ' m/yr']);
+            end
+        end
+    end
+
+    save_data = true;
+    if save_data
+        save('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/dhdt_masked.mat', 'dhdt_masked', 'dhdt_masked_years', '-v7.3');
+        disp('Saved dhdt_masked.mat with all 7 datasets and their year timetags');
+    end
+
+    % Optional plotting (set plot_mask = true to enable)
+    plot_mask = false;
+    if plot_mask
+        for k = 1:length(data_sets)
+            if ~isempty(dhdt_masked{k})
+                np = 64; % Number of colors
+                blue_to_white = [linspace(0,1,np/2)', linspace(0,1,np/2)', ones(np/2,1)];
+                white_to_red = [ones(np/2,1), linspace(1,0,np/2)', linspace(1,0,np/2)'];
+                custom_cmap = [blue_to_white; white_to_red];
+
+                figure;
+                data = dhdt_masked{k}(:,:,1); % Plot first time slice
+                pcolor(data);
+                shading flat;
+                colorbar;
+                title(sprintf('Masked dhdt for dataset %d (first time slice)', k));
+                xlabel('Longitude', 'FontSize', 14);
+                ylabel('Latitude', 'FontSize', 14);
+                set(gca, 'FontSize', 14);
+                colormap(flip(custom_cmap));
+                caxis([-1 1]);
+            end
+        end
+
+        % Plot the dhdt data and a mask contour 
+        figure()
+        data = dhdt_annual_1(:,:,end);
+        pcolor(long_sphere_1,lat_sphere_1, data)
+        shading flat;
+        hold on;
+        contour(long_sphere_1, lat_sphere_1, mask_resampled, [0.5, 0.5], 'k', 'LineWidth', 2);
+        hold off;
+        colorbar;
+        set(gca, 'FontSize', 14);
+        colormap(flip(custom_cmap));
+        caxis([-1 1]);
+        title('dhdt and a mask contour');
+        xlabel('X', 'FontSize', 14);
+        ylabel('Y', 'FontSize', 14);
+
+        figure()
+        pcolor(long_sphere_1, lat_sphere_1, double(mask_resampled))
+        shading flat;
+        hold on;
+        colorbar;
+        set(gca, 'FontSize', 14);
+        caxis([-1 1]);
+        title('mask field');
+        xlabel('X', 'FontSize', 14);
+        ylabel('Y', 'FontSize', 14);
+
+        figure()
+        A  = dhdt_annual_2(:,:,end);
+        M  = mask_resampled;                 % 0/1, same size as A, X_1, Y_1
+        D  = A - (A .* M);                   % = -A .* (1 - M)
+        % make zero values to NaNs
+        D(D == 0) = NaN;
+        figure;
+        pcolor(X_1, Y_1, D); shading flat; axis equal tight; colorbar;
+        hold on; contour(X_1, Y_1, M, [0.5 0.5], 'k', 'LineWidth', 1.5); hold off;
+        title('Unmasked minus Masked (EPSG:3413)');
+        set(gca, 'FontSize', 14);
+        colormap(flip(custom_cmap));
+    end
+
     disp('====================================');
 end
 
+if any(steps=='refine_mesh_with_gnss')
+    %% GNSS → EPSG:3413, sanity checks, and hierarchical BAMG refinement
+    % Assumes you already have:
+    %   - lon_gnss, lat_gnss (degrees, WGS84)
+    %   - md_regional (ISSM model with an existing 2D mesh in EPSG:3413 meters)
+
+    %% ---- 0) Parameters you can tune ----
+    r1_km   = 50;         % inner radius (km)
+    r2_km   = 100;        % outer radius (km)
+    h1_m    = 1e3;        % ≤ r1  → 1 km
+    h2_m    = 5e3;        % r1–r2 → 5 km
+    hmax    = 250000;     % far-field cap (coarse), meters (your original choice)
+    hmin    = 1000;       % global minimum edge length, meters
+    gradation = 2.0;      % bamg: max ratio between neighboring edges
+
+    %% ---- 1) Clean inputs & transform lon/lat → EPSG:3413 (meters) ----
+    % Normalize longitudes to [-180, 180), validate lat
+    lon = mod(lon_gnss+180,360)-180;
+    lat = lat_gnss;
+    assert(all(isfinite(lon)) && all(isfinite(lat)), 'NaNs/Infs in inputs');
+    assert(all(abs(lat) <= 90), 'Lat out of range');
+
+    % Use PROJ string for 4326 to avoid axis-order ambiguity
+    [x, y] = gdaltransform(lon, lat, ...
+        '+proj=longlat +datum=WGS84 +no_defs', 'EPSG:3413');
+
+    % Quick numeric sanity check
+    fprintf('x range: [%.0f, %.0f] m\n', min(x), max(x));
+    fprintf('y range: [%.0f, %.0f] m\n', min(y), max(y));
+
+    % Round-trip check (should be ~meters-level error)
+    [lon2, lat2] = gdaltransform(x, y, 'EPSG:3413', 'EPSG:4326');
+    err_lon = max(abs(lon2 - lon));
+    err_lat = max(abs(lat2 - lat));
+    fprintf('Round-trip max error: lon %.6f°, lat %.6f°\n', err_lon, err_lat);
+
+    % Visual check of GNSS locations in EPSG:3413
+    figure; scatter(x,y,18,'filled'); axis equal; grid on;
+    xlim([-1.5e6 1.5e6]); ylim([-3.6e6 -2e5]);
+    xlabel('X (m, EPSG:3413)'); ylabel('Y (m, EPSG:3413)');
+    title('GNSS over Greenland — EPSG:3413');
+
+    %% ---- 2) Build per-vertex target size (hVertices) with two refinement rings ----
+    % Mesh vertices (meters, EPSG:3413)
+    xm = md_regional.mesh.x(:);
+    ym = md_regional.mesh.y(:);
+    nv = md_regional.mesh.numberofvertices;
+
+    % Station coordinates (EPSG:3413 meters)
+    xs = x(:);
+    ys = y(:);
+
+    % Compute nearest distance from each mesh vertex to the set of stations
+    % Prefer KD-tree if available; otherwise fall back to a robust, memory-safe chunk loop.
+    use_kdtree = exist('createns','file') == 2 && exist('knnsearch','file') == 2;
+    if use_kdtree
+        % Statistics & Machine Learning Toolbox path
+        Mdl = createns([xs ys], 'NSMethod', 'kdtree');
+        [~, dmin] = knnsearch(Mdl, [xm ym]);   % meters
+    else
+        % Fallback: chunked min distance to avoid large memory spikes
+        fprintf('KD-tree not found; using chunked distance computation...\n');
+        chunk = 5000;                      % adjust if you like
+        dmin = inf(nv,1);
+        for i0 = 1:chunk:nv
+            i1 = min(i0+chunk-1, nv);
+            XV = xm(i0:i1);
+            YV = ym(i0:i1);
+            % Compute distances to all stations (vectorized across stations)
+            % Dist^2 = (XV - xs')^2 + (YV - ys')^2
+            Dx = XV - xs.';
+            Dy = YV - ys.';
+            D2 = Dx.^2 + Dy.^2;
+            dmin(i0:i1) = sqrt(min(D2,[],2));
+        end
+    end
+
+    % Map distance → target edge length h (meters)
+    r1 = r1_km * 1e3;     % 50 km
+    r2 = r2_km * 1e3;     % 100 km
+    h  = hmax * ones(nv,1);             % default far-field size
+    h(dmin <= r1) = h1_m;               % ≤ 50 km → 1 km
+    mask = dmin > r1 & dmin <= r2;
+    h(mask) = h2_m;                     % 50–100 km → 5 km
+    % Global min/max safety clamps
+    h = max(h, hmin);
+    h = min(h, hmax);
+
+    % (Optional) Visualize target sizes over current mesh
+    figure;
+    trisurf(md_regional.mesh.elements, md_regional.mesh.x, md_regional.mesh.y, h, ...
+            'EdgeColor','none'); view(2); axis equal tight; colorbar;
+    title('Target edge length h (m) for hierarchical refinement');
+    hold on; plot(xs,ys,'k.','MarkerSize',10); hold off;
+
+    %% ---- 3) Refine mesh with BAMG, honoring hVertices and locking station vertices ----
+    % Ensure unique RequiredVertices
+    req = unique([xs ys], 'rows');
+
+    md_refined = bamg(md_regional, ...
+        'hVertices', h, ...
+        'hmin', hmin, ...
+        'hmax', hmax, ...
+        'gradation', gradation, ...
+        'splitcorners', 1, ...
+        'KeepVertices', 1, ...
+        'RequiredVertices', req);
+
+    md_refined.mesh.epsg = 3413;
+
+    %% ---- 4) Plot refined mesh with stations ----
+    figure;
+    plotmodel(md_refined, 'data', 'mesh');
+    hold on; plot(xs, ys, 'r.', 'MarkerSize', 12); hold off;
+    axis equal;
+    xlabel('X (m, EPSG:3413)'); ylabel('Y (m, EPSG:3413)');
+    title('Refined mesh with hierarchical station-centered resolution');
+    legend('Mesh','GNSS');
+    set(gca,'FontSize',14);
+
+    %% ---- 5) (Optional) Quick size statistics near stations ----
+    fprintf('Refined mesh stats:\n');
+    fprintf('  min(hVertices): %.0f m\n', min(h));
+    fprintf('  max(hVertices): %.0f m\n', max(h));
+    n1 = sum(dmin <= r1);
+    n2 = sum(dmin > r1 & dmin <= r2);
+    n3 = sum(dmin > r2);
+    fprintf('  vertices ≤ %.0f km: %d\n', r1_km, n1);
+    fprintf('  vertices in (%.0f–%.0f] km: %d\n', r1_km, r2_km, n2);
+    fprintf('  vertices > %.0f km: %d\n', r2_km, n3);
+
+end
+if any(steps==10)
+    %addpath('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/scripts/mesh');
+    % Load mesh model and initialize models for each altimetry dataset
+    %md_regional = loadmodel(fpath_mesh_model_regional);  % can be anything (e.g., '[]') if bool_mesh_greenland_external is 'false'
+
+    % get gnss station coordinates 'lat_gnss' and 'lon_gnss' from running step 1.
+
+    % Assuming the GNSS data sets are already in EPSG:3413 projection, no need to switch the projection.
+    % But in case needed, use gdal transform [x,y] = gdaltransform(md.mesh.long,md.mesh.lat,'EPSG:3411','EPSG:3413')
+
+    % Ensure lon in [-180,180), lat in [-90,90]
+    lon = mod(lon_gnss+180,360)-180;
+    lat = lat_gnss;
+    assert(all(isfinite(lon)) && all(isfinite(lat)), 'NaNs/Infs in inputs');
+    assert(all(abs(lat) <= 90), 'Lat out of range');
+
+    % Use a PROJ string for WGS84 to force traditional lon,lat order
+    [x,y] = gdaltransform(lon, lat, '+proj=longlat +datum=WGS84 +no_defs', 'EPSG:3413');
+
+    fprintf('x range: [%.0f, %.0f] m\n', min(x), max(x));
+    fprintf('y range: [%.0f, %.0f] m\n', min(y), max(y));
+    % Greenland-typical in EPSG:3413 is roughly:
+    % x ~ [-1.5e6, 1.5e6], y ~ [-3.6e6, -2e5]
+    [lon2,lat2] = gdaltransform(x, y, 'EPSG:3413', 'EPSG:4326');
+    err_lon = max(abs(lon2 - lon));
+    err_lat = max(abs(lat2 - lat));
+    fprintf('Round-trip max error: lon %.6f°, lat %.6f°\n', err_lon, err_lat);
+    figure; scatter(x,y,18,'filled'); axis equal; grid on;
+    xlim([-1.5e6 1.5e6]); ylim([-3.6e6 -2e5]);
+    xlabel('X (m, EPSG:3413)'); ylabel('Y (m, EPSG:3413)');
+    title('GNSS over Greenland — EPSG:3413');
+
+    hmax = 250000; % max edge length in meters
+    hmin = 1000; % min edge length in meters
+    gradation = 2; % maximum ratio between two adjacent edges
+    err = 1;
+
+    md_refined = bamg(md_regional,'hmax',hmax,'hmin',hmin,'gradation',gradation,'splitcorners',1, ...
+                      'KeepVertices',0,'RequiredVertices', [x, y]);
+    md_refined.mesh.epsg = 3413;
+    plotmodel(md_refined,'data','mesh');
+    hold on
+    plot(x,y,'r.','MarkerSize', 18);
+    hold off
+    xlabel('X (m, EPSG:3413)'); ylabel('Y (m, EPSG:3413)');
+    title('GNSS over Greenland — EPSG:3413');
+    legend('Mesh','GNSS');
+    set(gca,'FontSize',14);
+    axis equal;
+end
 
 if any(steps==5)
     addpath('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/scripts/mesh');
     % Load mesh model and initialize models for each altimetry dataset
     md_regional = loadmodel(fpath_mesh_model_regional);  % can be anything (e.g., '[]') if bool_mesh_greenland_external is 'false'
 
-    % Interpolate with mass conservation enabled and corresponding ice masks
-    [md1_regional, mass_report_1] = interpolate_altimetry_to_mesh(h_annual_1, lat_sphere_1, long_sphere_1, years_altimetry_1, md_regional, X_1, Y_1, dhdt_annual_1);
+    loading_with_mask = true;
+    if loading_with_mask
+        % Interpolate with mass conservation enabled and corresponding ice masks
+        disp('=== Interpolating with mass conservation enabled and corresponding ice masks ===');
+        disp('== Loading measureItsLive-GEMB ==');
+        [md1_regional, mass_report_1] = interpolate_altimetry_to_mesh(h_annual_1, lat_sphere_1, long_sphere_1, dhdt_masked_years{1}, md_regional, X_1, Y_1, dhdt_masked{1});
+
+        disp('== Loading measureItsLive-GSFC ==');
+        [md2_regional, mass_report_2] = interpolate_altimetry_to_mesh(h_annual_2, lat_sphere_2, long_sphere_2, dhdt_masked_years{2}, md_regional, X_2, Y_2, dhdt_masked{2});
+
+        disp('== Loading DTU2016 ==');
+        [md3_regional, mass_report_3] = interpolate_altimetry_to_mesh(h_annual_3, lat_sphere_3, long_sphere_3, dhdt_masked_years{3}, md_regional, X_3, Y_3, dhdt_masked{3});
+
+        disp('== Loading DTU2025 ==');
+        [md4_regional, mass_report_4] = interpolate_altimetry_to_mesh(h_annual_4, lat_sphere_4, long_sphere_4, dhdt_masked_years{4}, md_regional, X_4, Y_4, dhdt_masked{4});
+
+        disp('== Loading Buffalo2025-GEMB ==');
+        [md5_regional, mass_report_5] = interpolate_altimetry_to_mesh(h_annual_5, lat_sphere_5, long_sphere_5, dhdt_masked_years{5}, md_regional, X_5, Y_5, dhdt_masked{5});
+
+        disp('== Loading Buffalo2025-GSFC ==');
+        [md6_regional, mass_report_6] = interpolate_altimetry_to_mesh(h_annual_6, lat_sphere_6, long_sphere_6, dhdt_masked_years{6}, md_regional, X_6, Y_6, dhdt_masked{6});
+
+        disp('== Loading Buffalo2025-IMAU ==');
+        [md7_regional, mass_report_7] = interpolate_altimetry_to_mesh(h_annual_7, lat_sphere_7, long_sphere_7, dhdt_masked_years{7}, md_regional, X_7, Y_7, dhdt_masked{7});
+    end
+
+    loading_without_mask = false;
+    if loading_without_mask
+        disp('=== Interpolating without mass conservation and corresponding ice masks ===');
+        disp('== Loading measureItsLive-GEMB ==');
+        [md1_regional, mass_report_1] = interpolate_altimetry_to_mesh(h_annual_1, lat_sphere_1, long_sphere_1, years_altimetry_1, md_regional, X_1, Y_1, dhdt_annual_1);
+
+        disp('== Loading measureItsLive-GSFC ==');
+        [md2_regional, mass_report_2] = interpolate_altimetry_to_mesh(h_annual_2, lat_sphere_2, long_sphere_2, years_altimetry_2, md_regional, X_2, Y_2, dhdt_annual_2);
+
+        disp('== Loading DTU2016 ==');
+        [md3_regional, mass_report_3] = interpolate_altimetry_to_mesh(h_annual_3, lat_sphere_3, long_sphere_3, years_altimetry_3, md_regional, X_3, Y_3, dhdt_annual_3);
+
+        disp('== Loading DTU2025 ==');
+        [md4_regional, mass_report_4] = interpolate_altimetry_to_mesh(h_annual_4, lat_sphere_4, long_sphere_4, years_altimetry_4, md_regional, X_4, Y_4, dhdt_annual_4);
+
+        disp('== Loading Buffalo2025-GEMB ==');
+        [md5_regional, mass_report_5] = interpolate_altimetry_to_mesh(h_annual_5, lat_sphere_5, long_sphere_5, years_altimetry_5, md_regional, X_5, Y_5, dhdt_annual_5);
+
+        disp('== Loading Buffalo2025-GSFC ==');
+        [md6_regional, mass_report_6] = interpolate_altimetry_to_mesh(h_annual_6, lat_sphere_6, long_sphere_6, years_altimetry_6, md_regional, X_6, Y_6, dhdt_annual_6);
+
+        disp('== Loading Buffalo2025-IMAU ==');
+        [md7_regional, mass_report_7] = interpolate_altimetry_to_mesh(h_annual_7, lat_sphere_7, long_sphere_7, years_altimetry_7, md_regional, X_7, Y_7, dhdt_annual_7);
+    end
+
+
     [md1, ~, ~, ~] = createGlobalMesh(md1_regional); % create global mesh from regional mesh
     md1 = initialize_model(md1);
 
-    [md2_regional, mass_report_2] = interpolate_altimetry_to_mesh(h_annual_2, lat_sphere_2, long_sphere_2, years_altimetry_2, md_regional, X_2, Y_2, dhdt_annual_2);
     [md2, ~, ~, ~] = createGlobalMesh(md2_regional); % create global mesh from regional mesh
     md2 = initialize_model(md2);
 
-    [md3_regional, mass_report_3] = interpolate_altimetry_to_mesh(h_annual_3, lat_sphere_3, long_sphere_3, years_altimetry_3, md_regional, X_3, Y_3, dhdt_annual_3);
     [md3, ~, ~, ~] = createGlobalMesh(md3_regional); % create global mesh from regional mesh
     md3 = initialize_model(md3);
 
-    [md4_regional, mass_report_4] = interpolate_altimetry_to_mesh(h_annual_4, lat_sphere_4, long_sphere_4, years_altimetry_4, md_regional, X_4, Y_4, dhdt_annual_4);
     [md4, ~, ~, ~] = createGlobalMesh(md4_regional); % create global mesh from regional mesh
     md4 = initialize_model(md4);
 
-    [md5_regional, mass_report_5] = interpolate_altimetry_to_mesh(h_annual_5, lat_sphere_5, long_sphere_5, years_altimetry_5, md_regional, X_5, Y_5, dhdt_annual_5);
     [md5, ~, ~, ~] = createGlobalMesh(md5_regional); % create global mesh from regional mesh
     md5 = initialize_model(md5);
 
-    [md6_regional, mass_report_6] = interpolate_altimetry_to_mesh(h_annual_6, lat_sphere_6, long_sphere_6, years_altimetry_6, md_regional, X_6, Y_6, dhdt_annual_6);
     [md6, ~, ~, ~] = createGlobalMesh(md6_regional); % create global mesh from regional mesh
     md6 = initialize_model(md6);
 
-    [md7_regional, mass_report_7] = interpolate_altimetry_to_mesh(h_annual_7, lat_sphere_7, long_sphere_7, years_altimetry_7, md_regional, X_7, Y_7, dhdt_annual_7);
     [md7, ~, ~, ~] = createGlobalMesh(md7_regional); % create global mesh from regional mesh
     md7 = initialize_model(md7);
 
@@ -186,7 +533,7 @@ if any(steps==5)
             [0.7725, 0.6392, 0.8706]};     % Light Purple for Buffalo2025-IMAU
     dataset_names = {'measureItsLive-GEMB', 'measureItsLive-GSFC', 'DTU2016', 'DTU2025', 'Buffalo2025-GEMB', 'Buffalo2025-GSFC', 'Buffalo2025-IMAU'};
 
-    figure()
+    figure() % need to debug this for the case of loading with ice mask
     plot(years_altimetry_1(2:end), mass_report_1.original_mass, 'Color', colors{1},'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{1});
     hold on;
     plot(years_altimetry_2(2:end), mass_report_2.original_mass, 'Color', colors{2}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{2});
@@ -214,15 +561,15 @@ if any(steps==6)
     % Run Green's function method to calculate GIA
     % with ice profile #1
     %[md1, vlm1_VE, vlm1_elastic, hlm1, accm1] = run_gia_greensFunction(md1, ht, lt, kt, false, lat_gnss, lon_gnss);
-    %md1_solved = run_gia(md1, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md1_solved');
+    md1_solved = run_gia(md1, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md1_solved');
 
     % with ice profile #2
     %[md2, vlm2_VE, vlm2_elastic, hlm2, accm2] = run_gia_greensFunction(md2, ht, lt, kt, false, lat_gnss, lon_gnss);
-    %md2_solved = run_gia(md2, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md2_solved');
+    md2_solved = run_gia(md2, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md2_solved');
 
     % with ice profile #3
     %[md3, vlm3_VE, vlm3_elastic, hlm3, accm3] = run_gia_greensFunction(md3, ht, lt, kt, false, lat_gnss, lon_gnss);
-    %md3_solved = run_gia(md3, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md3_solved');
+    md3_solved = run_gia(md3, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md3_solved');
 
     % with ice profile #4
     %[md4, vlm4_VE, vlm4_elastic, hlm4, accm4] = run_gia_greensFunction(md4, ht, lt, kt, false, lat_gnss, lon_gnss);
@@ -230,7 +577,7 @@ if any(steps==6)
 
     % with ice profile #5
     %[md5, vlm5_VE, vlm5_elastic, hlm5, accm5] = run_gia_greensFunction(md5, ht, lt, kt, false, lat_gnss, lon_gnss);
-    %md5_solved = run_gia(md5, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md5_solved');
+    md5_solved = run_gia(md5, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md5_solved');
 
     % with ice profile #6
     %[md6, vlm6_VE, vlm6_elastic, hlm6, accm6] = run_gia_greensFunction(md6, ht, lt, kt, false, lat_gnss, lon_gnss);
@@ -243,15 +590,6 @@ if any(steps==6)
     disp('====================================');
 end
 
-
-
-addpath('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/model_objects_saved/')
-md1_solved = loadmodel('md1_solved.mat');
-md2_solved = loadmodel('md2_solved.mat');
-md3_solved = loadmodel('md3_solved.mat');
-md5_solved = loadmodel('md5_solved.mat');
-md6_solved = loadmodel('md6_solved.mat');
-md7_solved = loadmodel('md7_solved.mat');
 
 if any(steps==7)
     % Compute misfit
@@ -438,5 +776,5 @@ if any(steps==9)
     %ylim([0, max(max(y))*1.1]);
 
     % Save the figure
-    saveas(gcf, sprintf('residual_comparison_for_different_ice_loading_models-elastic.png'));
+    saveas(gcf, sprintf('residual_comparison_for_different_ice_loading_models-elastic-with-ice-mask.png'));
 end
