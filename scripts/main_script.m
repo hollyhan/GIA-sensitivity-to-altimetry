@@ -266,15 +266,17 @@ if any(steps=='refine_mesh_with_gnss')
     % Assumes you already have:
     %   - lon_gnss, lat_gnss (degrees, WGS84)
     %   - md_regional (ISSM model with an existing 2D mesh in EPSG:3413 meters)
+    %     e.g. md_regional = loadmodel(fpath_mesh_model_regional);  % can be anything (e.g., '[]') if bool_mesh_greenland_external is 'false'
+
 
     %% ---- 0) Parameters you can tune ----
-    r1_km   = 50;         % inner radius (km)
-    r2_km   = 100;        % outer radius (km)
-    h1_m    = 1e3;        % ≤ r1  → 1 km
-    h2_m    = 5e3;        % r1–r2 → 5 km
-    hmax    = 250000;     % far-field cap (coarse), meters (your original choice)
-    hmin    = 1000;       % global minimum edge length, meters
-    gradation = 2.0;      % bamg: max ratio between neighboring edges
+    r1_km   = 50;         % inner radius (km) at which the mesh is refined to value h1_m
+    r2_km   = 100;        % outer radius (km) at which the mesh is refined to value h2_m
+    h1_m    = 1e3;        % mesh resolution inside inner radius r1_km, meters
+    h2_m    = 5e3;        % mesh resolution between inner and outer radius r1_km and r2_km, meters
+    hmax    = 100000;     % mesh resolution beyond radius r2_km, far-field cap (coarse), meters
+    hmin    = 1000;       % global minimum edge length, meters. This is a safety clamp to prevent excessively small elements.
+    gradation = 2.0;      % bamg: max ratio between neighboring edges. Value 2.0 is a good default ensuring the transition between 1 km and coarser elements is smooth and not too abrupt.
 
     %% ---- 1) Clean inputs & transform lon/lat → EPSG:3413 (meters) ----
     % Normalize longitudes to [-180, 180), validate lat
@@ -296,12 +298,6 @@ if any(steps=='refine_mesh_with_gnss')
     err_lon = max(abs(lon2 - lon));
     err_lat = max(abs(lat2 - lat));
     fprintf('Round-trip max error: lon %.6f°, lat %.6f°\n', err_lon, err_lat);
-
-    % Visual check of GNSS locations in EPSG:3413
-    figure; scatter(x,y,18,'filled'); axis equal; grid on;
-    xlim([-1.5e6 1.5e6]); ylim([-3.6e6 -2e5]);
-    xlabel('X (m, EPSG:3413)'); ylabel('Y (m, EPSG:3413)');
-    title('GNSS over Greenland — EPSG:3413');
 
     %% ---- 2) Build per-vertex target size (hVertices) with two refinement rings ----
     % Mesh vertices (meters, EPSG:3413)
@@ -349,13 +345,6 @@ if any(steps=='refine_mesh_with_gnss')
     h = max(h, hmin);
     h = min(h, hmax);
 
-    % (Optional) Visualize target sizes over current mesh
-    figure;
-    trisurf(md_regional.mesh.elements, md_regional.mesh.x, md_regional.mesh.y, h, ...
-            'EdgeColor','none'); view(2); axis equal tight; colorbar;
-    title('Target edge length h (m) for hierarchical refinement');
-    hold on; plot(xs,ys,'k.','MarkerSize',10); hold off;
-
     %% ---- 3) Refine mesh with BAMG, honoring hVertices and locking station vertices ----
     % Ensure unique RequiredVertices
     req = unique([xs ys], 'rows');
@@ -371,14 +360,50 @@ if any(steps=='refine_mesh_with_gnss')
 
     md_refined.mesh.epsg = 3413;
 
+    % Here, also calculate lat and lon values of the refined mesh
+    % Define the projection object for EPSG:3413 (WGS 84 / NSIDC Sea Ice Polar Stereographic North)
+    proj_info = projcrs(3413);
+
+    % Convert to geographic latitude/longitude (degrees, WGS84)
+    [md_refined.mesh.lat, md_refined.mesh.long] = projinv(proj_info, md_refined.mesh.x, md_refined.mesh.y);
+
     %% ---- 4) Plot refined mesh with stations ----
-    figure;
+    figure()
     plotmodel(md_refined, 'data', 'mesh');
-    hold on; plot(xs, ys, 'r.', 'MarkerSize', 12); hold off;
+    hold on; plot(xs, ys, 'b.', 'MarkerSize', 12); hold off;
     axis equal;
     xlabel('X (m, EPSG:3413)'); ylabel('Y (m, EPSG:3413)');
     title('Refined mesh with hierarchical station-centered resolution');
     legend('Mesh','GNSS');
+    set(gca,'FontSize',14);
+
+    figure() % plot using x,y coordinates (EPSG:3413)
+    % Plot altimetry data first (as background)
+    pcolor(x_3413_7, y_3413_7, dhdt_annual_7(:,:,end));
+    shading flat;
+    hold on; axis equal;
+    % Plot mesh lines on top
+    triplot(md_refined.mesh.elements, md_refined.mesh.x, md_refined.mesh.y, 'k', 'LineWidth', 0.5);
+    % Plot GNSS stations on top
+    plot(xs, ys, 'b.', 'MarkerSize', 12); % Use x,y coordinates for GNSS
+    xlabel('X (meters, EPSG:3413)'); ylabel('Y (meters, EPSG:3413)');
+    title('Refined Mesh + altimetery data field (dhdt) + GNSS stations');
+    set(gca,'FontSize',14);
+    colorbar;
+    colormap(flip(custom_cmap));
+    caxis([-1 1]);
+
+    figure() % plot using lat and lon values of the refined mesh
+    pcolor(long_sphere_7, lat_sphere_7, dhdt_annual_7(:,:,end));
+    shading flat;
+    colorbar;
+    hold on;
+    triplot(md_refined.mesh.elements, md_refined.mesh.long, md_refined.mesh.lat, 'k-');
+    plot(lon_gnss, lat_gnss, 'b.', 'MarkerSize', 12);
+    colormap(flip(custom_cmap));
+    caxis([-1 1]);
+    xlabel('Longitude (degrees)'); ylabel('Latitude (degrees)');
+    title('Refined Mesh + altimetery data field (dhdt) + GNSS stations');
     set(gca,'FontSize',14);
 
     %% ---- 5) (Optional) Quick size statistics near stations ----
