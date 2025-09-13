@@ -5,7 +5,7 @@ function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_gla
     % Data source: https://data.nsidc.earthdatacloud.nasa.gov/nsidc-cumulus-prod-protected/MEASURES/NSIDC-0793/1/1972/09/15/NSIDC-0793_19720915-20220215_V01.0.nc
     %
     % Inputs:
-    %   - target_years: Target years to extract (optional, default: 1995-1996)
+    %   - target_years: Target years to extract (optional, default: 1993-2022)
     % Outputs:
     %    - ice_masks: Ice mask data [lat x lon x years]
     %    - years: Year vector
@@ -159,11 +159,7 @@ function [ice_masks, years, lat_mask, lon_mask, x_mask, y_mask] = preprocess_gla
     % Convert to geographic coordinates (EPSG:3413 to WGS84)
     disp('Converting coordinates from EPSG:3413 to geographic...');
     proj_info = projcrs(3413); % Polar Stereographic North
-    [lat_ellipsoid, lon_ellipsoid] = projinv(proj_info, X_2d, Y_2d);
-    
-    % Transform to sphere for consistency with other datasets
-    r_earth = 6371000; % Earth radius in meters
-    [lat_mask, lon_mask, ~] = ellipsoid_to_sphere(lat_ellipsoid, lon_ellipsoid, r_earth, zeros(size(lat_ellipsoid)), false);
+    [lat_mask, lon_mask] = projinv(proj_info, X_2d, Y_2d);
     
     % Process ice mask data
     % ice_data is ice(time, y, x), we want [y, x, time] for MATLAB convention

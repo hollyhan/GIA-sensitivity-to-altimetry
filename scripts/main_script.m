@@ -1,6 +1,6 @@
 %% Define which steps to run
-%steps=[6;7;8;9];
-steps = 'refine_mesh_with_gnss';
+steps=3;%[6;7;8;9];
+%steps = 'refine_mesh_with_gnss';
 
 addpath('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/scripts/mesh');
 % Load settingsn
@@ -71,17 +71,25 @@ if any(steps==2)
 end
 
 if any(steps==3)
+    plot_mask = true;
+    if plot_mask
+        np = 64; % Number of colors
+        blue_to_white = [linspace(0,1,np/2)', linspace(0,1,np/2)', ones(np/2,1)];
+        white_to_red = [ones(np/2,1), linspace(1,0,np/2)', linspace(1,0,np/2)'];
+        custom_cmap = [blue_to_white; white_to_red];
+    end
+
     % Process glacier mask datasets (returns native high-resolution mask on spherical geographic coordinates)
     disp('=== Processing glacier mask data and apply the mask to the altimetry datasets ===');
 
     % Find overlapping years between the mask and altimetry data
-    yrs_mask = 2022; %1985:2022; % manually defined reliable data years based on the metadata
+    yrs_mask = 2018:2020; %1985:2022; % manually defined reliable data years based on the metadata
     % For dhdt, use timestamps starting from the second year (since dhdt = h(t1) - h(t0))
     years_altimetry = [years_altimetry_1(2:end); years_altimetry_2(2:end); years_altimetry_3(2:end); years_altimetry_4(2:end); years_altimetry_5(2:end); years_altimetry_6(2:end); years_altimetry_7(2:end)];
     years_altimetry = unique(years_altimetry);
     yrs_total_overlap = intersect(years_altimetry, yrs_mask);
     data_names = {'measureItsLive', 'DTU', 'Buffalo'};
-    data_sets = {dhdt_annual_1, dhdt_annual_2};%, dhdt_annual_3, dhdt_annual_4, dhdt_annual_5, dhdt_annual_6, dhdt_annual_7};
+    data_sets = {dhdt_annual_1, dhdt_annual_2, dhdt_annual_3, dhdt_annual_4, dhdt_annual_5, dhdt_annual_6, dhdt_annual_7};
 
     % Process mask year-by-year to avoid memory issues
     dhdt_masked = cell(length(data_sets), 1);
@@ -123,12 +131,31 @@ if any(steps==3)
                     disp('= Resampling glacier mask to the measureItsLive grid =');
                     mask_resampled = resample_mask_to_target_grid_xy(mask_union, x_mask, y_mask, x_3413_2, y_3413_2);
                     mask_resampled = double(mask_resampled); % convert from logical to numeric array
-`
+
                     % Mask the dhdt data
                     dhdt_masked{1}(:,:,a) = data_sets{1}(:,:,a).*mask_resampled; % measureItsLive-GEMB
                     dhdt_masked{2}(:,:,a) = data_sets{2}(:,:,a).*mask_resampled; % measureItsLive-GSFC
                     dhdt_masked_years{1}(a) = yrs_total_overlap(n); % Store year for dataset 1
                     dhdt_masked_years{2}(a) = yrs_total_overlap(n); % Store year for dataset 2
+
+                    % sanity check
+                    if plot_mask
+                        figure()
+                        pcolor(long_sphere_1, lat_sphere_1, dhdt_masked{1}(:,:,a))
+                        shading flat;
+                        colorbar;
+                        colormap(flip(custom_cmap));
+                        caxis([-1 1]);
+                        title('dhdt masked{1}');
+
+                        figure() % diff between masked and unmasked
+                        pcolor(long_sphere_1, lat_sphere_1, data_sets{1}(:,:,a) - dhdt_masked{1}(:,:,a))
+                        shading flat;
+                        colormap(flip(custom_cmap));
+                        caxis([-1 1]);
+                        colorbar;
+                        title('unmasked minus masked for measureItsLive-GEMB for a = ', num2str(a));
+                    end
                     a = a + 1;
                 end
             elseif strcmp(data_names{k}, 'DTU')
@@ -140,6 +167,25 @@ if any(steps==3)
                     dhdt_masked{4}(:,:,b) = data_sets{4}(:,:,b).*mask_resampled; % DTU2025
                     dhdt_masked_years{3}(b) = yrs_total_overlap(n); % Store year for dataset 3
                     dhdt_masked_years{4}(b) = yrs_total_overlap(n); % Store year for dataset 4
+
+                    % sanity check
+                    if plot_mask
+                        figure()
+                        pcolor(long_sphere_3, lat_sphere_3, dhdt_masked{3}(:,:,b))
+                        shading flat;
+                        colorbar;
+                        colormap(flip(custom_cmap));
+                        caxis([-1 1]);
+                        title('dhdt masked{3}');
+
+                        figure() % diff between masked and unmasked
+                        pcolor(long_sphere_3, lat_sphere_3, data_sets{3}(:,:,b) - dhdt_masked{3}(:,:,b))
+                        shading flat;
+                        colorbar;
+                        colormap(flip(custom_cmap));
+                        caxis([-1 1]);
+                        title('unmasked minus masked for DTU2025 for b = ', num2str(b));
+                    end
                     b = b + 1;
                 end
             elseif strcmp(data_names{k}, 'Buffalo')
@@ -153,6 +199,25 @@ if any(steps==3)
                     dhdt_masked_years{5}(c) = yrs_total_overlap(n); % Store year for dataset 5
                     dhdt_masked_years{6}(c) = yrs_total_overlap(n); % Store year for dataset 6
                     dhdt_masked_years{7}(c) = yrs_total_overlap(n); % Store year for dataset 7
+
+                    % sanity check
+                    if plot_mask
+                        figure()
+                        pcolor(long_sphere_5, lat_sphere_5, dhdt_masked{5}(:,:,c))
+                        shading flat;
+                        colorbar;
+                        colormap(flip(custom_cmap));
+                        caxis([-1 1]);
+                        title('dhdt masked{5}');
+
+                        figure() % diff between masked and unmasked
+                        pcolor(long_sphere_5, lat_sphere_5, data_sets{5}(:,:,c) - dhdt_masked{5}(:,:,c))
+                        shading flat;
+                        colorbar;
+                        colormap(flip(custom_cmap));
+                        caxis([-1 1]);
+                        title('unmasked minus masked for Buffalo2025-IMAU for c = ', num2str(c));
+                    end
                     c = c + 1;
                 end
             end  
@@ -194,36 +259,14 @@ if any(steps==3)
     end
 
     % Optional plotting (set plot_mask = true to enable)
-    plot_mask = false;
     if plot_mask
-        for k = 1:length(data_sets)
-            if ~isempty(dhdt_masked{k})
-                np = 64; % Number of colors
-                blue_to_white = [linspace(0,1,np/2)', linspace(0,1,np/2)', ones(np/2,1)];
-                white_to_red = [ones(np/2,1), linspace(1,0,np/2)', linspace(1,0,np/2)'];
-                custom_cmap = [blue_to_white; white_to_red];
-
-                figure;
-                data = dhdt_masked{k}(:,:,1); % Plot first time slice
-                pcolor(data);
-                shading flat;
-                colorbar;
-                title(sprintf('Masked dhdt for dataset %d (first time slice)', k));
-                xlabel('Longitude', 'FontSize', 14);
-                ylabel('Latitude', 'FontSize', 14);
-                set(gca, 'FontSize', 14);
-                colormap(flip(custom_cmap));
-                caxis([-1 1]);
-            end
-        end
-
         % Plot the dhdt data and a mask contour 
         figure()
-        data = dhdt_annual_1(:,:,end);
-        pcolor(long_sphere_1,lat_sphere_1, data)
+        data = dhdt_annual_7(:,:,end);
+        pcolor(long_sphere_7,lat_sphere_7, data)
         shading flat;
         hold on;
-        contour(long_sphere_1, lat_sphere_1, mask_resampled, [0.5, 0.5], 'k', 'LineWidth', 2);
+        contour(long_sphere_7, lat_sphere_7, mask_resampled, [0.5, 0.5], 'k', 'LineWidth', 2);
         hold off;
         colorbar;
         set(gca, 'FontSize', 14);
@@ -234,28 +277,23 @@ if any(steps==3)
         ylabel('Y', 'FontSize', 14);
 
         figure()
-        pcolor(long_sphere_1, lat_sphere_1, double(mask_resampled))
-        shading flat;
-        hold on;
-        colorbar;
-        set(gca, 'FontSize', 14);
-        caxis([-1 1]);
-        title('mask field');
-        xlabel('X', 'FontSize', 14);
-        ylabel('Y', 'FontSize', 14);
-
-        figure()
-        A  = dhdt_annual_2(:,:,end);
-        M  = mask_resampled;                 % 0/1, same size as A, X_1, Y_1
-        D  = A - (A .* M);                   % = -A .* (1 - M)
+        %D = -dhdt_annual_7(:,:,end).*(1 - mask_resampled);
+        dhdt_masked{7}(:,:,end) = data_sets{7}(:,:,end).*mask_resampled; % Buffalo2025-IMAU
+        D = -dhdt_annual_7(:,:,end) + dhdt_masked{7}(:,:,end);
         % make zero values to NaNs
         D(D == 0) = NaN;
-        figure;
-        pcolor(X_1, Y_1, D); shading flat; axis equal tight; colorbar;
-        hold on; contour(X_1, Y_1, M, [0.5 0.5], 'k', 'LineWidth', 1.5); hold off;
+        %contour(long_sphere_7, lat_sphere_7, mask_resampled, [0.5 0.5], '--k', 'LineWidth', 0.2); hold on;
+        hold on
+        pcolor(long_sphere_7, lat_sphere_7, D);
+        shading flat;
         title('Unmasked minus Masked (EPSG:3413)');
         set(gca, 'FontSize', 14);
         colormap(flip(custom_cmap));
+        caxis([-1 1]);
+        colorbar;
+        % plot GNSS stations using lat_gnss and lon_gnss
+        plot(lon_gnss, lat_gnss, 'k.', 'MarkerSize', 10);
+
     end
 
     disp('====================================');
@@ -405,6 +443,7 @@ if any(steps=='refine_mesh_with_gnss')
     xlabel('Longitude (degrees)'); ylabel('Latitude (degrees)');
     title('Refined Mesh + altimetery data field (dhdt) + GNSS stations');
     set(gca,'FontSize',14);
+
 
     %% ---- 5) (Optional) Quick size statistics near stations ----
     fprintf('Refined mesh stats:\n');

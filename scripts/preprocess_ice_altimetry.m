@@ -1,4 +1,4 @@
-function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long_sphere, X, Y, X_2d, Y_2d] = preprocess_ice_altimetry(data_name, plot_altimetry)
+function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_ellipsoid, long_ellipsoid, X, Y, X_2d, Y_2d] = preprocess_ice_altimetry(data_name, plot_altimetry)
     % preprocess_ice_altimetry.m
     % Holly Han (created: July 25th, 2025; Last edited: August 13th, 2025).
     % Preprocesses ice thickness and elevation change data from altimetry.
@@ -12,8 +12,8 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long
     %    - dhdt_annual: ice thickness change over at each year (m/yr)
     %    - dhdt_monthly: ice thickness change at monthly intervals (m/month)
     %    - years_thickness: timearray on which 'h_annual' is defined (yr)
-    %    - lat_sphere: latitude coordinates on sphere
-    %    - long_sphere: longitude coordinates on sphere
+    %    - lat_ellipsoid: latitude coordinates on ellipsoid
+    %    - long_ellipsoid: longitude coordinates on ellipsoid
     %    - X: original X grid coordinates (m)
     %    - Y: original Y grid coordinates (m)
     %    - X_2d: original X grid coordinates in meshgrid format (m)
@@ -268,9 +268,9 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_sphere, long
     [lat_ellipsoid, long_ellipsoid] = projinv(proj_info, X_2d, Y_2d); % put x and y in meters
 
     % TRANSFORM TO SPHERE for GIA modeling (supports full 3D deformation)
-    disp('Transforming to spherical coordinates');
-    r_earth = 6371000.; % radius of the earth consistent with the value used in ISSM
-    [lat_sphere, long_sphere, dhdt_annual] = ellipsoid_to_sphere(lat_ellipsoid, long_ellipsoid, r_earth, dhdt_annual);
+    %disp('Transforming to spherical coordinates');
+    %r_earth = 6371000.; % radius of the earth consistent with the value used in ISSM
+    %[lat_sphere, long_sphere, dhdt_annual] = ellipsoid_to_sphere(lat_ellipsoid, long_ellipsoid, r_earth, dhdt_annual);
 
     % Convert NaN values to zero (no change in ice thickness)
     fprintf('Converting NaN values to zero...\n');
