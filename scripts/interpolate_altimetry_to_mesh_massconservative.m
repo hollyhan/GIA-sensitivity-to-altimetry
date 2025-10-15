@@ -1,21 +1,30 @@
 function [md_updated, report] = interpolate_altimetry_to_mesh_massconservative( ...
-    h_annual, lat, lon, years, md, X, Y, dhdt_annual)
+    h_annual, lat, lon, years, md, X, Y, dhdt_annual, varargin)
 % interpolate_altimetry_to_mesh_massconservative
-% Resolution-independent interpolation of altimetry-derived ice thickness
-% or dh/dt onto an ISSM mesh, conserving total and local mass.
+% Resolution-independent, mass-conserving interpolation of altimetry-derived
+% ice thickness (h) or rate-of-change (dh/dt) onto an ISSM mesh.
+%
+% Name–value pairs (optional):
+%   'sigma'        - Primary Gaussian kernel width (m) [default = 10e3]
+%   'sigma_final'  - Secondary smoother width (m)      [default = 5e3]
 
 tic;
+rhoi = 917; % kg/m^3
 
-rhoi = 917; % ice density [kg/m³]
+%% Parse optional args
+p = inputParser;
+addParameter(p,'sigma',10e3,@(x)isnumeric(x)&&x>0);
+addParameter(p,'sigma_final',5e3,@(x)isnumeric(x)&&x>0);
+parse(p,varargin{:});
+sigma       = p.Results.sigma;
+sigma_final = p.Results.sigma_final;
 
-%% --- Input Validation ---
+%% Input validation
 if nargin < 7
     error('Usage: interpolate_altimetry_to_mesh_massconservative(h_annual,lat,lon,years,md,X,Y,[dhdt_annual])');
 end
-
 disp('Running resolution-independent, mass-conserving interpolation...')
 
-%% --- Prepare Data ---
 if size(lat,1) ~= size(lon,1) || size(lat,2) ~= size(lon,2)
     error('Latitude and longitude dimensions must match.');
 end
@@ -26,105 +35,151 @@ elseif size(h_annual,1) ~= size(lat,1) || size(h_annual,2) ~= size(lat,2)
     error('h_annual spatial dimensions do not match coordinates.');
 end
 
-%% --- Grid info (true projected area) ---
+%% Grid info
 dX = mean(diff(X));
 dY = mean(diff(Y));
-cell_area = abs(dX * dY);             % single nominal cell area
-fprintf('Projected altimetry grid spacing: %.0f × %.0f m (area %.0f m²)\n',abs(dX),abs(dY),cell_area);
-
+cell_area = abs(dX * dY);
+fprintf('Projected altimetry grid spacing: %.0f × %.0f m (area %.0f m²)\n', abs(dX), abs(dY), cell_area);
 [Xgrid,Ygrid] = meshgrid(X,Y);
-cell_area_local = abs(dX * dY) * ones(numel(Xgrid),1); % uniform area, but ready for non-uniform extension
+cell_area_local = abs(dX * dY) * ones(numel(Xgrid),1);
 
-%% --- Data selection ---
+%% Choose data
 if exist('dhdt_annual','var') && ~isempty(dhdt_annual)
-    data3D = dhdt_annual; nt = size(dhdt_annual,3); data_label='dhdt';
+    data3D = dhdt_annual; nt = size(dhdt_annual,3); data_label = 'dhdt';
 else
-    data3D = h_annual;    nt = size(h_annual,3);    data_label='h';
+    data3D = h_annual;    nt = size(h_annual,3);    data_label = 'h';
 end
 
-%% --- Target mesh info ---
+%% Target mesh
 nVerts = md.mesh.numberofvertices;
-x = md.mesh.x; y = md.mesh.y;
-interp_data = zeros(nVerts,nt);
-mass_src_total = zeros(nt,1);
-mass_dst_total = zeros(nt,1);
+x = double(md.mesh.x(:));
+y = double(md.mesh.y(:));
 
-sigma = 10e3;      % first-pass Gaussian width (m)
-sigma_final = 5e3; % second-pass smoother (m)
+interp_data     = zeros(nVerts, nt);
+mass_src_total  = zeros(nt,1);
+mass_dst_total  = zeros(nt,1);
+
 fprintf('Number of mesh vertices: %d \n', nVerts);
-fprintf('Smoothing kernels: %.0f km (primary) + %.0f km (final)\n',sigma/1e3,sigma_final/1e3);
+fprintf('Smoothing kernels: %.0f km (primary) + %.0f km (final)\n', sigma/1e3, sigma_final/1e3);
 
-%% --- Compute per-vertex areas (once) ---
-tri = md.mesh.elements;
-Atri = 0.5*abs((x(tri(:,2))-x(tri(:,1))).*(y(tri(:,3))-y(tri(:,1))) - ...
-               (x(tri(:,3))-x(tri(:,1))).*(y(tri(:,2))-y(tri(:,1))));
-Avert = accumarray(tri(:),repmat(Atri/3,3,1),[nVerts 1]);
+%% Per-vertex areas
+tri  = md.mesh.elements;
+Atri = 0.5 * abs((x(tri(:,2))-x(tri(:,1))) .* (y(tri(:,3))-y(tri(:,1))) - ...
+                 (x(tri(:,3))-x(tri(:,1))) .* (y(tri(:,2))-y(tri(:,1))));
+Avert = accumarray(tri(:), repmat(Atri/3,3,1), [nVerts 1]);
 
-%% --- Main interpolation loop ---
+%% KD-tree setup
+kdtree = KDTreeSearcher([x, y]);
+[neighbors_primary, distances_primary] = rangesearch(kdtree,[x y],3*sigma);
+[neighbors_final,   distances_final]   = rangesearch(kdtree,[x y],3*sigma_final);
+
+%% Main interpolation loop
+t_start = tic;
 for t = 1:nt
+    fprintf('Interpolating timestep %d / %d ...\n',t,nt);
+    if t>1
+        avg_time = toc(t_start)/(t-1);
+        eta_min  = (nt-t+1)*avg_time/60;
+        fprintf('  Estimated time remaining: %.2f minutes\n',eta_min);
+    end
+
     slice = data3D(:,:,t);
     mass_src_total(t) = nansum(slice(:))*cell_area*rhoi*1e-12; % Gt
-
-    zv = slice(:);
-    mask = ~isnan(zv);
+    zv = slice(:); mask = ~isnan(zv);
     F = scatteredInterpolant(Xgrid(mask),Ygrid(mask),zv(mask),'natural','none');
-    vals = F(x,y);
+    vals = double(F(x,y));
 
-    % --- Primary Gaussian smoothing (~15 km)
-    vals_smooth = vals;
+    % ===== Primary Gaussian smoothing (defensive) =====
+    vals_smooth = zeros(nVerts,1);
     for i = 1:nVerts
-        dx_i = x - x(i); dy_i = y - y(i);
-        w = exp(-(dx_i.^2+dy_i.^2)/(2*sigma^2));
-        w = w/sum(w);
-        vals_smooth(i) = nansum(w.*vals);
+        neigh = neighbors_primary{i};
+        r = distances_primary{i};
+        if isempty(neigh)
+            vals_smooth(i)=vals(i); continue
+        end
+        neigh = neigh(:); r = double(r(:));
+        neigh = neigh(neigh>=1 & neigh<=nVerts);
+        n = min(numel(neigh),numel(r));
+        if n==0, vals_smooth(i)=vals(i); continue, end
+        neigh = neigh(1:n); r=r(1:n);
+
+        w = exp(-(r.^2)/(2*sigma^2)); w=w(:);
+        v = vals(neigh); v=v(:);
+        n2 = min(numel(w),numel(v));
+        if n2==0, vals_smooth(i)=vals(i); continue, end
+        w=w(1:n2); v=v(1:n2);
+        s=sum(w); if ~isfinite(s)||s==0, w(:)=1/n2; else, w=w./s; end
+        vals_smooth(i)=nansum(w.*v);
     end
     vals = vals_smooth; vals(isnan(vals))=0;
-    interp_data(:,t) = vals;
-
+    interp_data(:,t)=vals;
     mass_dst_total(t)=nansum(vals.*Avert)*rhoi*1e-12; % Gt
 
-    % --- Final smoother (~10 km) with local renormalization
-    vals_final = vals;
+    % ===== Final Gaussian smoothing (defensive) =====
+    vals_final = zeros(nVerts,1);
     for i = 1:nVerts
-        dx_i = x - x(i); dy_i = y - y(i);
-        w = exp(-(dx_i.^2+dy_i.^2)/(2*sigma_final^2)); w=w/sum(w);
-        vals_final(i)=nansum(w.*vals);
+        neigh = neighbors_final{i};
+        r = distances_final{i};
+        if isempty(neigh)
+            vals_final(i)=vals(i); continue
+        end
+        neigh = neigh(:); r = double(r(:));
+        neigh = neigh(neigh>=1 & neigh<=nVerts);
+        n = min(numel(neigh),numel(r));
+        if n==0, vals_final(i)=vals(i); continue, end
+        neigh = neigh(1:n); r=r(1:n);
+
+        w = exp(-(r.^2)/(2*sigma_final^2)); w=w(:);
+        v = vals(neigh); v=v(:);
+        n2 = min(numel(w),numel(v));
+        if n2==0, vals_final(i)=vals(i); continue, end
+        w=w(1:n2); v=v(1:n2);
+        s=sum(w); if ~isfinite(s)||s==0, w(:)=1/n2; else, w=w./s; end
+        vals_final(i)=nansum(w.*v);
     end
-    total_before=nansum(vals.*Avert); total_after=nansum(vals_final.*Avert);
-    vals_final=vals_final*(total_before/total_after);
+
+    % Preserve total (area-weighted) mass
+    total_before = nansum(vals.*Avert);
+    total_after  = nansum(vals_final.*Avert);
+    if isfinite(total_after)&&total_after~=0
+        vals_final = vals_final*(total_before/total_after);
+    end
     interp_data(:,t)=vals_final;
 end
 
-%% --- Local area-weighted renormalization ---
+%% Local area-weighted renormalization
 fprintf('\nApplying local area-weighted renormalization (projected grid)...\n');
-Fw = scatteredInterpolant(Xgrid(:),Ygrid(:),cell_area_local,'nearest','nearest');
-w_local = Fw(x,y);
-
-for t = 1:nt
-    vals = interp_data(:,t);
-    total_src  = nansum(data3D(:,:,t),'all')*cell_area*rhoi*1e-12;
-    total_mesh = nansum(vals.*Avert)*rhoi*1e-12;
+Fw=scatteredInterpolant(Xgrid(:),Ygrid(:),cell_area_local,'nearest','nearest');
+w_local=Fw(x,y);
+for t=1:nt
+    vals=interp_data(:,t);
+    total_src=nansum(data3D(:,:,t),'all')*cell_area*rhoi*1e-12;
+    total_mesh=nansum(vals.*Avert)*rhoi*1e-12;
     if total_mesh>0
-        vals = vals.*(total_src./total_mesh).*(w_local./mean(w_local,'omitnan'));
+        vals=vals.*(total_src./total_mesh).*(w_local./mean(w_local,'omitnan'));
     end
     interp_data(:,t)=vals;
 end
 
-%% --- Mass diagnostics ---
+%% Mass diagnostics
 mass_corr_total=zeros(nt,1);
 for t=1:nt
     mass_corr_total(t)=nansum(interp_data(:,t).*Avert)*rhoi*1e-12;
 end
-
 report.mass_src_total=mass_src_total;
 report.mass_dst_total=mass_dst_total;
 report.mass_corr_total=mass_corr_total;
-report.mean_error_percent=mean(abs(1 - mass_corr_total./mass_src_total)*100);
+report.mean_error_percent=mean(abs(1-mass_corr_total./mass_src_total)*100);
 
+diff_sum = sum(report.mass_corr_total) - sum(report.mass_src_total);
+pct_diff = abs(diff_sum) / abs(sum(report.mass_src_total)) * 100;
+
+fprintf('Global total mass (src vs corr): %.2f vs %.2f Gt — Δ = %.2f Gt (%.2f%%)\n', ...
+    sum(report.mass_src_total), sum(report.mass_corr_total), diff_sum, pct_diff);
 fprintf('Mean total-mass error after projected-area renormalization: %.2f%%\n',report.mean_error_percent);
-fprintf('Mean absolute mismatch: %.2f Gt\n',mean(abs(report.mass_corr_total - report.mass_src_total)));
+fprintf('Mean absolute mismatch: %.2f Gt\n',mean(abs(report.mass_corr_total-report.mass_src_total)));
 
-%% --- Spatial diagnostic (mid-timestep) ---
+%% Spatial diagnostic
 t_diag=round(nt/2);
 slice_src=data3D(:,:,t_diag);
 slice_interp=interp_data(:,t_diag);
@@ -138,7 +193,7 @@ if sum(mask_valid)>10
 end
 fprintf('Interpolation completed (mass-conservative, resolution-independent).\n');
 
-%% --- Reconstruct thickness if dh/dt used ---
+%% Reconstruct thickness
 if strcmp(data_label,'dhdt')
     md.masstransport.spcthickness=zeros(nVerts+1,nt+1);
     fprintf('Initialized spcthickness: %d verts × %d timesteps\n',nVerts,nt+1);
@@ -157,14 +212,15 @@ if strcmp(data_label,'dhdt')
     md.masstransport.spcthickness(1:nVerts,:)=h_reconstructed;
 else
     md.masstransport.spcthickness=zeros(nVerts+1,nt);
+    fprintf('Initialized spcthickness: %d verts × %d timesteps\n',nVerts,nt);
     md.masstransport.spcthickness(1:nVerts,:)=interp_data;
 end
 
 md.masstransport.spcthickness(end,:)=years(:)';
-disp('Reconstruction of ice thickness on md.masstransport.spcthickness completed.')
+disp('Reconstruction of ice thickness on md.masstransport.spcthickness completed.');
+
 md_updated=md;
-elapsed_time = toc; 
-fprintf('Interpolation routine completed in %.2f seconds (%.2f minutes)\n', ...
-        elapsed_time, elapsed_time/60);
+elapsed_time=toc;
+fprintf('Interpolation routine completed in %.2f seconds (%.2f minutes)\n',elapsed_time,elapsed_time/60);
 disp('====================================');
 end
