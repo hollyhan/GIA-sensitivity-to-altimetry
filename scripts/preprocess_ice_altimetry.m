@@ -227,7 +227,7 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_ellipsoid, l
 
     % Create years_thickness for thickness data (has nt+1 elements)
     % years represents years for dhdt_annual, years_thickness represents years for h_annual
-    years_thickness = [years; years(end) + 1]; % Add one more year for the final thickness
+    years_thickness = [ years(1) - 1; years]; % Add one more year for the final thickness
 
     % Calculate ice mass change in Gt
     disp("Calculating ice mass change based on annual data")
