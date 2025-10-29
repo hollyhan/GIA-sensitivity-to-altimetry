@@ -226,8 +226,14 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_ellipsoid, l
     years = double(years);
 
     % Create years_thickness for thickness data (has nt+1 elements)
-    % years represents years for dhdt_annual, years_thickness represents years for h_annual
-    years_thickness = [ years(1) - 1; years]; % Add one more year for the final thickness
+    switch data_name
+        case {'measureItsLive-GEMB', 'measureItsLive-GSFC', 'DTU2016', 'DTU2025'}
+            % These datasets end mid- or end-year; extend by +1 year
+            years_thickness = [years; years(end) + 1];
+
+        case {'Buffalo2025-GEMB', 'Buffalo2025-GSFC', 'Buffalo2025-IMAU'}
+            years_thickness = [years(1) - 1; years];
+end
 
     % Calculate ice mass change in Gt
     disp("Calculating ice mass change based on annual data")
