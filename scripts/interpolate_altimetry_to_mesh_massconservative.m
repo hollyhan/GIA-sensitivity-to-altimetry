@@ -46,8 +46,10 @@ cell_area_local = abs(dX * dY) * ones(numel(Xgrid),1);
 %% Choose data
 if exist('dhdt_annual','var') && ~isempty(dhdt_annual)
     data3D = dhdt_annual; nt = size(dhdt_annual,3); data_label = 'dhdt';
+    data3D = double(data3D);
 else
     data3D = h_annual;    nt = size(h_annual,3);    data_label = 'h';
+    data3D = double(data3D);
 end
 
 %% Target mesh
