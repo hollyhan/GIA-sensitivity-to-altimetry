@@ -1,5 +1,5 @@
 %% Define which steps to run
-steps=[4];
+steps=[7;8;9;10];
 
 % Load settingsn
 run('settings_observation_data.m');
@@ -261,7 +261,7 @@ if any(steps==3)
 
     save_data = true;
     if save_data
-        save('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/dhdt_masked_debug.mat', 'dhdt_masked', 'dhdt_masked_years', '-v7.3');
+        save('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/dhdt_masked.mat', 'dhdt_masked', 'dhdt_masked_years', '-v7.3');
         disp('Saved dhdt_masked with all 7 datasets and their year timetags');
     end
 
@@ -315,7 +315,7 @@ if any(steps==4)
 
     md_regional = loadmodel(fpath_mesh_model_regional);  % can be anything (e.g., '[]') if bool_mesh_greenland_external is 'false'
 
-    plot_mesh = true;
+    plot_mesh = false;
     if plot_mesh
         np = 64; % Number of colors
         blue_to_white = [linspace(0,1,np/2)', linspace(0,1,np/2)', ones(np/2,1)];
@@ -543,13 +543,20 @@ if any(steps==4)
     fprintf('  vertices > %.0f km: %d\n', r2_km, n3);
 
     % Save mesh
-    save(fullfile(fpath_mesh_model_regional_refined, 'md_refined.mat'), 'md_regional');
+    save(fullfile(fpath_mesh_model_regional_refined, 'md_refined.mat'), 'md_refined');
     sprintf('Refined mesh saved in the path: %s',fpath_mesh_model_regional_refined)
 end
 
 % Interpolate altimetry data onto the 2D refined regional mesh
 if any(steps==5)
     addpath('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/scripts/mesh');
+
+    % load the masked data
+    load_dhdt_masked_data = false;
+    if load_dhdt_masked_data
+        load('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/dhdt_masked.mat');
+        % If data does not exist, run Step 3
+    end
 
     % For plotting the mass report (original and interpolated)
     % original mass in solid lines and interpolated mass in dashed lines
@@ -566,57 +573,57 @@ if any(steps==5)
     loading_with_mask = true;
     if loading_with_mask
         disp('=== Interpolating with mass conservation enabled and corresponding ice masks ===');
-        %disp('== Loading measureItsLive-GEMB ==');
-        [md1_regional_with_mask, mass_report_1_dhdt_refined_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_1, lat_sphere_1, long_sphere_1, dhdt_masked_years{1}, md_refined, X_1, Y_1, dhdt_masked{1},'sigma', 1e3, 'sigma_final', 1e3);
+        disp('== Loading measureItsLive-GEMB ==');
+        [md1_regional_with_mask, mass_report_1_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_1, lat_sphere_1, long_sphere_1, dhdt_masked_years{1}, md_refined, X_1, Y_1, dhdt_masked{1},'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md1_regional_with_mask.mat'), 'md1_regional_with_mask');
         clear md1_regional_with_mask;
 
-        %disp('== Loading measureItsLive-GSFC ==');
-        [md2_regional_with_mask, mass_report_2_with_mask] = interpolate_altimetry_to_mesh(h_annual_2, lat_sphere_2, long_sphere_2, dhdt_masked_years{2}, md_regional, X_2, Y_2, dhdt_masked{2});
-        save(fullfile(fpath_mesh_model_regional_refined, 'md2_regional_with_mask.mat'), 'md2_regional_with_mask', 'mass_report_2_with_mask');
+        disp('== Loading measureItsLive-GSFC ==');
+        [md2_regional_with_mask, mass_report_2_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_2, lat_sphere_2, long_sphere_2, dhdt_masked_years{2}, md_refined, X_2, Y_2, dhdt_masked{2}, 'sigma', 1e3, 'sigma_final', 1e3);
+        save(fullfile(fpath_mesh_model_regional_refined, 'md2_regional_with_mask.mat'), 'md2_regional_with_mask');
         clear md2_regional_with_mask;
 
         disp('== Loading DTU2016 ==');
-        [md3_regional_with_mask, mass_report_3_with_mask] = interpolate_altimetry_to_mesh(h_annual_3, lat_sphere_3, long_sphere_3, dhdt_masked_years{3}, md_regional, X_3, Y_3, dhdt_masked{3});
-        save(fullfile(fpath_mesh_model_regional_refined, 'md3_regional_with_mask.mat'), 'md3_regional_with_mask', 'mass_report_3_with_mask');
+        [md3_regional_with_mask, mass_report_3_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_3, lat_sphere_3, long_sphere_3, dhdt_masked_years{3}, md_refined, X_3, Y_3, dhdt_masked{3}, 'sigma', 1e3, 'sigma_final', 1e3);
+        save(fullfile(fpath_mesh_model_regional_refined, 'md3_regional_with_mask.mat'), 'md3_regional_with_mask');
         clear md3_regional_with_mask;
 
         disp('== Loading DTU2025 ==');
-        [md4_regional_with_mask, mass_report_4_with_mask] = interpolate_altimetry_to_mesh(h_annual_4, lat_sphere_4, long_sphere_4, dhdt_masked_years{4}, md_regional, X_4, Y_4, dhdt_masked{4});
-        save(fullfile(fpath_mesh_model_regional_refined, 'md4_regional_with_mask.mat'), 'md4_regional_with_mask', 'mass_report_4_with_mask');
+        [md4_regional_with_mask, mass_report_4_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_4, lat_sphere_4, long_sphere_4, dhdt_masked_years{4}, md_refined, X_4, Y_4, dhdt_masked{4}, 'sigma', 1e3, 'sigma_final', 1e3);
+        save(fullfile(fpath_mesh_model_regional_refined, 'md4_regional_with_mask.mat'), 'md4_regional_with_mask');
         clear md4_regional_with_mask;
 
         disp('== Loading Buffalo2025-GEMB ==');
-        [md5_regional_with_mask, mass_report_5_with_mask] = interpolate_altimetry_to_mesh(h_annual_5, lat_sphere_5, long_sphere_5, dhdt_masked_years{5}, md_regional, X_5, Y_5, dhdt_masked{5});
-        save(fullfile(fpath_mesh_model_regional_refined, 'md5_regional_with_mask.mat'), 'md5_regional_with_mask', 'mass_report_5_with_mask');
+        [md5_regional_with_mask, mass_report_5_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_5, lat_sphere_5, long_sphere_5, dhdt_masked_years{5}, md_refined, X_5, Y_5, dhdt_masked{5}, 'sigma', 1e3, 'sigma_final', 1e3);
+        save(fullfile(fpath_mesh_model_regional_refined, 'md5_regional_with_mask.mat'), 'md5_regional_with_mask');
         clear md5_regional_with_mask;
 
         disp('== Loading Buffalo2025-GSFC ==');
-        [md6_regional_with_mask, mass_report_6_with_mask] = interpolate_altimetry_to_mesh(h_annual_6, lat_sphere_6, long_sphere_6, dhdt_masked_years{6}, md_regional, X_6, Y_6, dhdt_masked{6});
-        save(fullfile(fpath_mesh_model_regional_refined, 'md6_regional_with_mask.mat'), 'md6_regional_with_mask', 'mass_report_6_with_mask');
+        [md6_regional_with_mask, mass_report_6_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_6, lat_sphere_6, long_sphere_6, dhdt_masked_years{6}, md_refined, X_6, Y_6, dhdt_masked{6}, 'sigma', 1e3, 'sigma_final', 1e3);
+        save(fullfile(fpath_mesh_model_regional_refined, 'md6_regional_with_mask.mat'), 'md6_regional_with_mask');
         clear md6_regional_with_mask;
 
         disp('== Loading Buffalo2025-IMAU ==');
-        [md7_regional_with_mask, mass_report_7_with_mask] = interpolate_altimetry_to_mesh(h_annual_7, lat_sphere_7, long_sphere_7, dhdt_masked_years{7}, md_regional, X_7, Y_7, dhdt_masked{7});
+        [md7_regional_with_mask, mass_report_7_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_7, lat_sphere_7, long_sphere_7, dhdt_masked_years{7}, md_refined, X_7, Y_7, dhdt_masked{7}, 'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md7_regional_with_mask.mat'), 'md7_regional_with_mask');
         clear md7_regional_with_mask;
 
         % save mass report
         save(fullfile(fpath_results_general, 'mass_report_with_mask.mat'), 'mass_report_1_with_mask', 'mass_report_2_with_mask', 'mass_report_3_with_mask', 'mass_report_4_with_mask', 'mass_report_5_with_mask', 'mass_report_6_with_mask', 'mass_report_7_with_mask');
 
-        figure() % need to debug this for the case of loading with ice mask
-        plot(years_altimetry_1(2:end), mass_report_1_with_mask.original_mass, 'Color', colors{1},'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{1});
+        figure(1) % need to debug this for the case of loading with ice mask
+        plot(dhdt_masked_years{1}(2:end), mass_report_1_with_mask.mass_src_total, 'Color', colors{1},'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{1});
         hold on;
-        plot(years_altimetry_2(2:end), mass_report_2_with_mask.original_mass, 'Color', colors{2}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{2});
-        plot(years_altimetry_3(2:end), mass_report_3_with_mask.original_mass, 'Color', colors{3}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{3});
-        plot(years_altimetry_4(2:end), mass_report_4_with_mask.original_mass, 'Color', colors{4}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{4});
-        plot(years_altimetry_5(2:end), mass_report_5_with_mask.original_mass, 'Color', colors{5}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{5});
-        plot(years_altimetry_6(2:end), mass_report_6_with_mask.original_mass, 'Color', colors{6}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{6});
-        plot(years_altimetry_7(2:end), mass_report_7_with_mask.original_mass, 'Color', colors{7}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{7});
+        plot(dhdt_masked_years{2}(2:end), mass_report_2_with_mask.mass_src_total, 'Color', colors{2}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{2});
+        plot(dhdt_masked_years{3}(2:end), mass_report_3_with_mask.mass_src_total, 'Color', colors{3}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{3});
+        plot(dhdt_masked_years{4}(2:end), mass_report_4_with_mask.mass_src_total, 'Color', colors{4}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{4});
+        plot(dhdt_masked_years{5}(2:end), mass_report_5_with_mask.mass_src_total, 'Color', colors{5}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{5});
+        plot(dhdt_masked_years{6}(2:end), mass_report_6_with_mask.mass_src_total, 'Color', colors{6}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{6});
+        plot(dhdt_masked_years{7}(2:end), mass_report_7_with_mask.mass_src_total, 'Color', colors{7}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{7});
 
         xlabel('Time (year)', 'FontSize', 18);
-        ylabel('Mass change (Gt)', 'FontSize', 18);
-        title('Annual mass change (Gt/yr) for different altimetry datasets (on native grid) with ice mask', 'FontSize', 20);
+        ylabel('Annual mass change (Gt/yr)', 'FontSize', 18);
+        title('MB from native altimetry datasets with ice mask', 'FontSize', 20);
         legend('show', 'Location', 'best', 'FontSize', 16);
         grid on;
         set(gca, 'FontSize', 18);
@@ -626,37 +633,37 @@ if any(steps==5)
     if loading_without_mask
         disp('=== Interpolating with mass conservation and without corresponding ice masks ===');
         disp('== Loading measureItsLive-GEMB ==');
-        [md1_regional_without_mask, mass_report_1_dhdt_refined_without_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_1, lat_sphere_1, long_sphere_1, years_altimetry_1', md_refined, X_1, Y_1, dhdt_annual_1, 'sigma', 1e3, 'sigma_final', 1e3);
+        [md1_regional_without_mask, mass_report_1_without_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_1, lat_sphere_1, long_sphere_1, years_altimetry_1', md_refined, X_1, Y_1, dhdt_annual_1, 'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md1_regional_without_mask.mat'), 'md1_regional_without_mask');
         clear md1_regional_without_mask;
 
         disp('== Loading measureItsLive-GSFC ==');
-        [md2_regional_without_mask, mass_report_2_without_mask] = interpolate_altimetry_to_mesh(h_annual_2, lat_sphere_2, long_sphere_2, years_altimetry_2', md_regional, X_2, Y_2, dhdt_annual_2);
+        [md2_regional_without_mask, mass_report_2_without_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_2, lat_sphere_2, long_sphere_2, years_altimetry_2', md_refined, X_2, Y_2, dhdt_annual_2, 'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md2_regional_without_mask.mat'), 'md2_regional_without_mask');
         clear md2_regional_without_mask;
 
         disp('== Loading DTU2016 ==');
-        [md3_regional_without_mask, mass_report_3_without_mask] = interpolate_altimetry_to_mesh(h_annual_3, lat_sphere_3, long_sphere_3, years_altimetry_3', md_regional, X_3, Y_3, dhdt_annual_3);
+        [md3_regional_without_mask, mass_report_3_without_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_3, lat_sphere_3, long_sphere_3, years_altimetry_3', md_refined, X_3, Y_3, dhdt_annual_3, 'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md3_regional_without_mask.mat'), 'md3_regional_without_mask');
         clear md3_regional_without_mask;
         
         disp('== Loading DTU2025 ==');
-        [md4_regional_without_mask, mass_report_4_without_mask] = interpolate_altimetry_to_mesh(h_annual_4, lat_sphere_4, long_sphere_4, years_altimetry_4', md_regional, X_4, Y_4, dhdt_annual_4);
+        [md4_regional_without_mask, mass_report_4_without_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_4, lat_sphere_4, long_sphere_4, years_altimetry_4', md_refined, X_4, Y_4, dhdt_annual_4, 'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md4_regional_without_mask.mat'), 'md4_regional_without_mask');
         clear md4_regional_without_mask;
         
         disp('== Loading Buffalo2025-GEMB ==');
-        [md5_regional_without_mask, mass_report_5_without_mask] = interpolate_altimetry_to_mesh(h_annual_5, lat_sphere_5, long_sphere_5, years_altimetry_5', md_regional, X_5, Y_5, dhdt_annual_5);
+        [md5_regional_without_mask, mass_report_5_without_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_5, lat_sphere_5, long_sphere_5, years_altimetry_5', md_refined, X_5, Y_5, dhdt_annual_5, 'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md5_regional_without_mask.mat'), 'md5_regional_without_mask');
         clear md5_regional_without_mask;
         
         disp('== Loading Buffalo2025-GSFC ==');
-        [md6_regional_without_mask, mass_report_6_without_mask] = interpolate_altimetry_to_mesh(h_annual_6, lat_sphere_6, long_sphere_6, years_altimetry_6', md_regional, X_6, Y_6, dhdt_annual_6);
+        [md6_regional_without_mask, mass_report_6_without_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_6, lat_sphere_6, long_sphere_6, years_altimetry_6', md_refined, X_6, Y_6, dhdt_annual_6, 'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md6_regional_without_mask.mat'), 'md6_regional_without_mask');
         clear md6_regional_without_mask;
         
         disp('== Loading Buffalo2025-IMAU ==');
-        [md7_regional_without_mask, mass_report_7_without_mask] = interpolate_altimetry_to_mesh(h_annual_7, lat_sphere_7, long_sphere_7, years_altimetry_7', md_regional, X_7, Y_7, dhdt_annual_7);
+        [md7_regional_without_mask, mass_report_7_without_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_7, lat_sphere_7, long_sphere_7, years_altimetry_7', md_refined, X_7, Y_7, dhdt_annual_7, 'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md7_regional_without_mask.mat'), 'md7_regional_without_mask');
         clear md7_regional_without_mask;
 
@@ -664,14 +671,14 @@ if any(steps==5)
         save(fullfile(fpath_results_general, 'mass_report_without_mask.mat'), 'mass_report_1_without_mask', 'mass_report_2_without_mask', 'mass_report_3_without_mask', 'mass_report_4_without_mask', 'mass_report_5_without_mask', 'mass_report_6_without_mask', 'mass_report_7_without_mask');
 
         figure() % need to debug this for the case of loading without ice mask
-        plot(years_altimetry_1(2:end), mass_report_1_without_mask.original_mass, 'Color', colors{1},'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{1});
+        plot(years_altimetry_1(2:end), mass_report_1_without_mask.mass_src_total, 'Color', colors{1},'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{1});
         hold on;
-        plot(years_altimetry_2(2:end), mass_report_2_without_mask.original_mass, 'Color', colors{2}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{2});
-        plot(years_altimetry_3(2:end), mass_report_3_without_mask.original_mass, 'Color', colors{3}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{3});
-        plot(years_altimetry_4(2:end), mass_report_4_without_mask.original_mass, 'Color', colors{4}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{4});
-        plot(years_altimetry_5(2:end), mass_report_5_without_mask.original_mass, 'Color', colors{5}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{5});
-        plot(years_altimetry_6(2:end), mass_report_6_without_mask.original_mass, 'Color', colors{6}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{6});
-        plot(years_altimetry_7(2:end), mass_report_7_without_mask.original_mass, 'Color', colors{7}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{7});
+        plot(years_altimetry_2(2:end), mass_report_2_without_mask.mass_src_total, 'Color', colors{2}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{2});
+        plot(years_altimetry_3(2:end), mass_report_3_without_mask.mass_src_total, 'Color', colors{3}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{3});
+        plot(years_altimetry_4(2:end), mass_report_4_without_mask.mass_src_total, 'Color', colors{4}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{4});
+        plot(years_altimetry_5(2:end), mass_report_5_without_mask.mass_src_total, 'Color', colors{5}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{5});
+        plot(years_altimetry_6(2:end), mass_report_6_without_mask.mass_src_total, 'Color', colors{6}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{6});
+        plot(years_altimetry_7(2:end), mass_report_7_without_mask.mass_src_total, 'Color', colors{7}, 'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{7});
 
         xlabel('Time (year)', 'FontSize', 18);
         ylabel('Mass change (Gt)', 'FontSize', 18);
@@ -679,87 +686,127 @@ if any(steps==5)
         legend('show', 'Location', 'best', 'FontSize', 16);
         grid on;
         set(gca, 'FontSize', 18);
+
+        figure()
+        plot(dhdt_masked_years{1}(2:end), mass_report_1_with_mask.mass_src_total, 'Color', colors{1},'LineStyle', '-o', 'LineWidth', 2, 'DisplayName', dataset_names{1});
+        hold on
+        plot(years_altimetry_1(2:end), mass_report_1_without_mask.mass_src_total, 'Color', colors{1},'LineStyle', '-', 'LineWidth', 2, 'DisplayName', dataset_names{1});
+
     end
 end
 
 if any(steps==6) 
     % create global mesh from regional mesh and initialize model
-    loading_with_mask = true;
+    loading_with_mask = false;
+    load_md_regional = true;
+
     if loading_with_mask
-        md1_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md1_regional_with_mask.mat'));
-        md2_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md2_regional_with_mask.mat'));
-        md3_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md3_regional_with_mask.mat'));
-        md4_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md4_regional_with_mask.mat'));
-        md5_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md5_regional_with_mask.mat'));
-        md6_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md6_regional_with_mask.mat'));
-        md7_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md7_regional_with_mask.mat'));
+        label = 'with_mask';
     else
-        md1_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md1_regional_without_mask.mat'));
-        md2_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md2_regional_without_mask.mat'));
-        md3_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md3_regional_without_mask.mat'));
-        md4_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md4_regional_without_mask.mat'));
-        md5_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md5_regional_without_mask.mat'));
-        md6_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md6_regional_without_mask.mat'));
-        md7_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, 'md7_regional_without_mask.mat'));
+        label = 'without_mask';
     end
 
-    [md1, ~, ~, ~] = createGlobalMesh(md1_regional); % create global mesh from regional mesh
-    md1 = initialize_model(md1);
+    if load_md_regional
+        md1_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md1_regional_%s.mat', label)));
+        md2_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md2_regional_%s.mat', label)));
+        md3_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md3_regional_%s.mat', label)));
+        md4_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md4_regional_%s.mat', label)));
+        md5_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md5_regional_%s.mat', label)));
+        md6_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md6_regional_%s.mat', label)));
+        md7_regional = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md7_regional_%s.mat', label)));
+    end
 
-    [md2, ~, ~, ~] = createGlobalMesh(md2_regional); % create global mesh from regional mesh
-    md2 = initialize_model(md2);
+    [md1_global, ~, ~, ~] = createGlobalMesh(md1_regional); % create global mesh from regional mesh
+    md1_global = initialize_model(md1_global);
+    save(fullfile(fpath_mesh_model_regional_refined, sprintf('md1_global_%s.mat', label)), 'md1_global');
+    clear md1_regional
 
-    [md3, ~, ~, ~] = createGlobalMesh(md3_regional); % create global mesh from regional mesh
-    md3 = initialize_model(md3);
+    [md2_global, ~, ~, ~] = createGlobalMesh(md2_regional); % create global mesh from regional mesh
+    md2_global = initialize_model(md2_global);
+    save(fullfile(fpath_mesh_model_regional_refined, sprintf('md2_global_%s.mat', label)), 'md2_global');
+    clear md2_regional
 
-    [md4, ~, ~, ~] = createGlobalMesh(md4_regional); % create global mesh from regional mesh
-    md4 = initialize_model(md4);
+    [md3_global, ~, ~, ~] = createGlobalMesh(md3_regional); % create global mesh from regional mesh
+    md3_global = initialize_model(md3_global);
+    save(fullfile(fpath_mesh_model_regional_refined, sprintf('md3_global_%s.mat', label)), 'md3_global');
+    clear md3_regional
 
-    [md5, ~, ~, ~] = createGlobalMesh(md5_regional); % create global mesh from regional mesh
-    md5 = initialize_model(md5);
+    [md4_global, ~, ~, ~] = createGlobalMesh(md4_regional); % create global mesh from regional mesh
+    md4_global = initialize_model(md4_global);
+    save(fullfile(fpath_mesh_model_regional_refined, sprintf('md4_global_%s.mat', label)), 'md4_global');
+    clear md4_regional
 
-    [md6, ~, ~, ~] = createGlobalMesh(md6_regional); % create global mesh from regional mesh
-    md6 = initialize_model(md6);
+    [md5_global, ~, ~, ~] = createGlobalMesh(md5_regional); % create global mesh from regional mesh
+    md5_global = initialize_model(md5_global);
+    save(fullfile(fpath_mesh_model_regional_refined, sprintf('md5_global_%s.mat', label)), 'md5_global');
+    clear md5_regional
 
-    [md7, ~, ~, ~] = createGlobalMesh(md7_regional); % create global mesh from regional mesh
-    md7 = initialize_model(md7);
+    [md6_global, ~, ~, ~] = createGlobalMesh(md6_regional); % create global mesh from regional mesh
+    md6_global = initialize_model(md6_global);
+    save(fullfile(fpath_mesh_model_regional_refined, sprintf('md6_global_%s.mat', label)), 'md6_global');
+    clear md6_regional
+
+    [md7_global, ~, ~, ~] = createGlobalMesh(md7_regional); % create global mesh from regional mesh
+    md7_global = initialize_model(md7_global);
+    save(fullfile(fpath_mesh_model_regional_refined, sprintf('md7_global_%s.mat', label)), 'md7_global');
+    clear md7_regional
 end
 
 if any(steps==7)
     % Calculate GIA using different loading models
     disp('=== Calculating GIA using different loading models ===');
 
+    loading_with_mask = true;
+    load_md_global = true;
+
+    if loading_with_mask
+        label = 'with_mask';
+    else
+        label = 'without_mask';
+    end
+
+    if load_md_global
+        disp(sprintf('loading md data for %s', label))
+        md1_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md1_global_%s.mat', label)));
+        md2_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md2_global_%s.mat', label)));
+        md3_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md3_global_%s.mat', label)));
+        md4_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md4_global_%s.mat', label)));
+        md5_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md5_global_%s.mat', label)));
+        md6_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md6_global_%s.mat', label)));
+        md7_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md7_global_%s.mat', label)));
+    end
+
     % Read love numbers from file from path specified in settings_observation_data.m
     load(fpath_love_numbers);
 
     % Run Green's function method to calculate GIA
     % with ice profile #1
-    %[md1, vlm1_VE, vlm1_elastic, hlm1, accm1] = run_gia_greensFunction(md1, ht, lt, kt, false, lat_gnss, lon_gnss);
-    md1_solved = run_gia(md1, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md1_solved');
+    [md1_solved, vlm1_VE, vlm1_elastic, hlm1, accm1] = run_gia_greensFunction(md1_global, ht, lt, kt, false, lat_gnss, lon_gnss);
+    %md1_solved = run_gia(md1, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md1_solved');
 
     % with ice profile #2
-    %[md2, vlm2_VE, vlm2_elastic, hlm2, accm2] = run_gia_greensFunction(md2, ht, lt, kt, false, lat_gnss, lon_gnss);
-    md2_solved = run_gia(md2, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md2_solved');
+    [md2_solved, vlm2_VE, vlm2_elastic, hlm2, accm2] = run_gia_greensFunction(md2_global, ht, lt, kt, false, lat_gnss, lon_gnss);
+    %md2_solved = run_gia(md2, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md2_solved');
 
     % with ice profile #3
-    %[md3, vlm3_VE, vlm3_elastic, hlm3, accm3] = run_gia_greensFunction(md3, ht, lt, kt, false, lat_gnss, lon_gnss);
-    md3_solved = run_gia(md3, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md3_solved');
+    [md3_solved, vlm3_VE, vlm3_elastic, hlm3, accm3] = run_gia_greensFunction(md3_global, ht, lt, kt, false, lat_gnss, lon_gnss);
+    %md3_solved = run_gia(md3, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md3_solved');
 
     % with ice profile #4
-    %[md4, vlm4_VE, vlm4_elastic, hlm4, accm4] = run_gia_greensFunction(md4, ht, lt, kt, false, lat_gnss, lon_gnss);
-    md4_solved = run_gia(md4, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md4_solved');
+    [md4_solved, vlm4_VE, vlm4_elastic, hlm4, accm4] = run_gia_greensFunction(md4_global, ht, lt, kt, false, lat_gnss, lon_gnss);
+    %md4_solved = run_gia(md4, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md4_solved');
 
     % with ice profile #5
-    %[md5, vlm5_VE, vlm5_elastic, hlm5, accm5] = run_gia_greensFunction(md5, ht, lt, kt, false, lat_gnss, lon_gnss);
-    md5_solved = run_gia(md5, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md5_solved');
+    [md5_solved, vlm5_VE, vlm5_elastic, hlm5, accm5] = run_gia_greensFunction(md5_global, ht, lt, kt, false, lat_gnss, lon_gnss);
+    %md5_solved = run_gia(md5, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md5_solved');
 
     % with ice profile #6
-    %[md6, vlm6_VE, vlm6_elastic, hlm6, accm6] = run_gia_greensFunction(md6, ht, lt, kt, false, lat_gnss, lon_gnss);
-    md6_solved = run_gia(md6, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md6_solved');
+    [md6_solved, vlm6_VE, vlm6_elastic, hlm6, accm6] = run_gia_greensFunction(md6_global, ht, lt, kt, false, lat_gnss, lon_gnss);
+    %md6_solved = run_gia(md6, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md6_solved');
 
     % with ice profile #7
-    %[md7, vlm7_VE, vlm7_elastic, hlm7, accm7] = run_gia_greensFunction(md7, ht, lt, kt, false, lat_gnss, lon_gnss);
-    md7_solved = run_gia(md7, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md7_solved');
+    [md7_solved, vlm7_VE, vlm7_elastic, hlm7, accm7] = run_gia_greensFunction(md7_global, ht, lt, kt, false, lat_gnss, lon_gnss);
+    %md7_solved = run_gia(md7, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md7_solved');
 
     disp('====================================');
 end
@@ -769,31 +816,31 @@ if any(steps==8)
     % Compute misfit
     [~, mean1_err_gnss, vlm1_VE_GF_gnss_processed, misfit1, rate1, rate_gnss_fit, y_fit_model1, y_fit_gnss] = ...
     compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md1_solved);
+                        time_gnss, stn_id, md1_solved, vlm1_VE);
 
     [~, mean2_err_gnss, vlm2_VE_GF_gnss_processed, misfit2, rate2, rate_gnss_fit, y_fit_model2, y_fit_gnss] = ...
     compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md2_solved);
+                        time_gnss, stn_id, md2_solved, vlm2_VE);
 
     [~, mean3_err_gnss, vlm3_VE_GF_gnss_processed, misfit3, rate3, rate_gnss_fit, y_fit_model3, y_fit_gnss] = ...
     compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md3_solved);
+                        time_gnss, stn_id, md3_solved, vlm3_VE);
 
     [~, mean4_err_gnss, vlm4_VE_GF_gnss_processed, misfit4, rate4, rate_gnss_fit, y_fit_model4, y_fit_gnss] = ...
     compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md4_solved);
+                        time_gnss, stn_id, md4_solved, vlm4_VE);
 
     [~, mean5_err_gnss, vlm5_VE_GF_gnss_processed, misfit5, rate5, rate_gnss_fit, y_fit_model5, y_fit_gnss] = ...
     compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md5_solved);
+                        time_gnss, stn_id, md5_solved, vlm5_VE);
 
     [~, mean6_err_gnss, vlm6_VE_GF_gnss_processed, misfit6, rate6, rate_gnss_fit, y_fit_model6, y_fit_gnss] = ...
     compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md6_solved);
+                        time_gnss, stn_id, md6_solved, vlm6_VE);
 
     [~, mean7_err_gnss, vlm7_VE_GF_gnss_processed, misfit7, rate7, rate_gnss_fit, y_fit_model7, y_fit_gnss] = ...
     compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md7_solved);
+                        time_gnss, stn_id, md7_solved, vlm7_VE);
 end
 
 if any(steps==9)
@@ -833,7 +880,7 @@ if any(steps==9)
 
         xlabel('Time (year)', 'FontSize', 18);
         ylabel('VLM (mm)', 'FontSize', 18);
-        title(sprintf('GIA vs GNSS VLM Rate Comparison at Station %s', stn_id{n}), 'FontSize', 20);
+        title(sprintf('GIA vs GNSS VLM Rate Comparison at Station %s (%s)', stn_id{n}, label), 'FontSize', 20);
         legend('show', 'Location', 'best', 'FontSize', 16);
         grid on;
         set(gca, 'FontSize', 18);
@@ -891,6 +938,9 @@ if any(steps==9)
     xticks(1:num_stations);
     xticklabels(stn_id);
     xtickangle(45);
+
+    % Save the figure
+    saveas(gcf, sprintf('GIA vs GNSS Rate Comparison Across All Stations-elastic %s.png', label));
 
     % Add statistics summary
     fprintf('\n=== Rate Comparison Summary ===\n');
@@ -950,72 +1000,94 @@ if any(steps==10)
     %ylim([0, max(max(y))*1.1]);
 
     % Save the figure
-    saveas(gcf, sprintf('residual_comparison_for_different_ice_loading_models-elastic-with-ice-mask.png'));
-end
+    saveas(gcf, sprintf('residual_comparison_for_different_ice_loading_models-elastic %s.png', label));
 
+    % Apply GIA corrections from Parviz
+    % First, read in the gia data
+    gia_data = read_VLM_sites(fpath_gia, true)
+    gia3D_mean = gia_data.VLM3D_mean;
+    gia3D_sigma = gia_data.VLM3D_sigma;
+    gia1D_mean = gia_data.VLM1D_mean;
+    gia1D_sigma = gia_data.VLM1D_sigma
+    
+  %% Apply GIA correction to GNSS VLM residuals (1D & 3D)
 
-% Test how much loading differenes will be generated from using masked ice and unmasked ice
+    % Inputs:
+    %   y: [nStations x nAltimetry] matrix of GNSS residuals (mm/yr)
+    %   stn_id: {1 x nStations} cell array of station names
+    %   gia_data.name: [1 x nGiaStations] string array of names
+    %   gia_data.VLM1D_mean, gia_data.VLM3D_mean: GIA correction values (mm/yr)
 
-% --- Initialize video writer ---
-idx_stn = 43;%21; %KUAQ; 43 % KAGA
-ylim0 = 69.1;%68.4; %KUAQ %69.1; %KAGA
-ylim1 = 69.3;%68.7; %69.3; %KAGA
-xlim1 = -49.5;%-33.8; %KUAQ -49.5%KAGA
-xlim0 = -50.5; %-32.6; % -50.5;%KAGA
-[x_gnss_whole, y_gnss_whole] = ll2xy(lat_gnss, lon_gnss, +1);  % +1 for north polar stereographic (Greenland)
-[xmin, ymin] = ll2xy(xlim0, ylim0,+1)
-[xmax, ymax] = ll2xy(xlim1, ylim1,+1)
+    % --- Preallocate corrected arrays ---
+    y_corr_1D = NaN(size(y));
+    y_corr_3D = NaN(size(y));
+    applied_gia_1D = NaN(size(y,1),1);
+    applied_gia_3D = NaN(size(y,1),1);
 
-% Differences between masked vs unmasked on the ISSM mesh
-nf = 4; 
-n0 = 3; % 
-t0 = md1_regional_with_mask.masstransport.spcthickness(end,n0);
-tf = md1_regional_with_mask.masstransport.spcthickness(end,nf);
-diff_h_refined_masked = md1_regional_with_mask.masstransport.spcthickness(1:end-1,nf)-md1_regional_with_mask.masstransport.spcthickness(1:end-1,n0);
-diff_h_refined_unmasked =  md1_regional_without_mask.masstransport.spcthickness(1:end-1,nf)-md1_regional_without_mask.masstransport.spcthickness(1:end-1,n0);
+    % --- Loop over each GNSS station ---
+    for i = 1:length(stn_id)
+        name_gnss = string(stn_id{i});
 
-plotmodel(md1_regional_with_mask,'data', diff_h_refined_masked,'figure',1,'caxis',([-20 20]), 'xlim',[xmin xmax],'ylim',[ymin ymax])
-hold on
-title(sprintf('Masked (%d-%d)',t0,tf))
-colormap(flip(custom_cmap));
-plot(x_gnss, y_gnss, 'k.', 'MarkerSize', 15);
+        % Find the corresponding station in the GIA dataset
+        match_idx = find(gia_data.name == name_gnss, 1);
 
-for i = 1:length(stn_id)
-    text(x_gnss_whole(i), y_gnss_whole(i), stn_id{i}, ...
-        'FontSize', 10, ...
-        'FontWeight', 'bold', ...
-        'Color', 'r', ...
-        'VerticalAlignment', 'bottom', ...
-        'HorizontalAlignment', 'center');
-end
+        if ~isempty(match_idx)
+            % Extract both 1D and 3D GIA correction values for that site
+            gia_val_1D = gia_data.VLM1D_mean(match_idx);
+            gia_val_3D = gia_data.VLM3D_mean(match_idx);
 
-plotmodel(md1_regional_without_mask,'data', diff_h_refined_unmasked,'figure',2,'caxis',([-20 20]), 'xlim',[xlim0 xlim1],'ylim',[ylim0 ylim1])
-hold on
-title(sprintf('Unmasked (%d-%d)', md1_regional_without_mask.masstransport.spcthickness(end,n0), md1_regional_without_mask.masstransport.spcthickness(end,nf)))
-colormap(flip(custom_cmap));  
-plot(x_gnss, y_gnss, 'k.', 'MarkerSize', 15);
+            % Apply correction to all altimetry datasets (column-wise)
+            y_corr_1D(i,:) = y(i,:) - gia_val_1D;
+            y_corr_3D(i,:) = y(i,:) - gia_val_3D;
 
-for i = 1:length(stn_id)
-    text(x_gnss_whole(i), y_gnss_whole(i), stn_id{i}, ...
-        'FontSize', 10, ...
-        'FontWeight', 'bold', ...
-        'Color', 'r', ...
-        'VerticalAlignment', 'bottom', ...
-        'HorizontalAlignment', 'center');
-end
+            % Store which correction was used
+            applied_gia_1D(i) = gia_val_1D;
+            applied_gia_3D(i) = gia_val_3D;
+        else
+            % If no match, keep NaN and warn
+            warning('⚠️ No GIA match found for station %s', name_gnss);
+        end
+    end
 
-plotmodel(md1_regional_with_mask,'data', diff_h_refined_unmasked-diff_h_refined_masked,'figure',3,'caxis',([-20 20]), 'xlim',[xmin xmax],'ylim',[ymin ymax],'edgecolor','black')
-hold on
-title(sprintf('Unmasked minus Masked (%d-%d)',t0,tf))
-colormap(flip(custom_cmap));  
-plot(x_gnss_whole, y_gnss_whole, 'm.', 'MarkerSize', 15);
-plot(x_gnss, y_gnss, 'b.', 'MarkerSize', 15);
+    % --- Summary of matching ---
+    nMatched = sum(~isnan(applied_gia_1D));
+    fprintf('\n✅ GIA correction (1D & 3D) applied for %d of %d stations.\n', nMatched, length(stn_id));
 
-for i = 1:length(stn_id)
-    text(x_gnss_whole(i), y_gnss_whole(i), stn_id{i}, ...
-        'FontSize', 10, ...
-        'FontWeight', 'bold', ...
-        'Color', 'r', ...
-        'VerticalAlignment', 'bottom', ...
-        'HorizontalAlignment', 'center');
-end
+    % --- Combine into structure for clarity ---
+    residual_data = struct();
+    residual_data.station        = stn_id(:);
+    residual_data.y_raw          = y;
+    residual_data.gia_1D_applied = applied_gia_1D;
+    residual_data.gia_3D_applied = applied_gia_3D;
+    residual_data.y_corr_1D      = y_corr_1D;
+    residual_data.y_corr_3D      = y_corr_3D;
+
+    % --- Quick check summary ---
+    fprintf('\nExample (first altimetry dataset):\n');
+    disp(table(stn_id(:), applied_gia_1D, applied_gia_3D, ...
+            y(:,1), y_corr_1D(:,1), y_corr_3D(:,1), ...
+        'VariableNames', {'Station','GIA_1D(mm/yr)','GIA_3D(mm/yr)', ...
+                        'Original(mm/yr)','Corrected_1D(mm/yr)','Corrected_3D(mm/yr)'}));
+
+    % Draw plot for GIA corrected residuals
+    figure('Color','w','Position',[100 100 1500 600]);
+    b1 = bar(x, y_corr_1D, 1);
+    hold on;
+    b1(1).FaceColor = [0.2157, 0.4941, 0.7216];  % Dark Blue (measureItsLive-GEMB)
+    b1(2).FaceColor = [0.5294, 0.6667, 0.8627];  % Light Blue (measureItsLive-GSFC)
+    b1(3).FaceColor = [0.9020, 0.6235, 0.0000];  % Dark Orange (DTU2016)
+    b1(4).FaceColor = [1.0000, 0.7647, 0.4000];  % Light Orange (DTU2025)
+    b1(5).FaceColor = [0.4157, 0.2392, 0.6039];  % Dark Purple (Buffalo2025-GEMB)
+    b1(6).FaceColor = [0.6196, 0.4235, 0.7843];  % Medium Purple (Buffalo2025-GSFC)
+    b1(7).FaceColor = [0.7725, 0.6392, 0.8706];  % Light Purple (Buffalo2025-IMAU)
+
+    set(gca, 'XTick', 1:length(stn_id), 'XTickLabel', stn_id, 'FontSize', 12);
+    xtickangle(45);
+    xlabel('Station ID');
+    ylabel('Residual (mm/yr)');
+    title('Residuals (1D GIA-corrected): GNSS - Model');
+    legend({'measureItsLive-GEMB','measureItsLive-GSFC','DTU2016','DTU2025',...
+            'Buffalo2025-GEMB','Buffalo2025-GSFC','Buffalo2025-IMAU'}, ...
+            'Location','northeast');
+    grid on; box on;
+    ylim([-10 10]); % adjust range as appropriate
