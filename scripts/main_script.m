@@ -1,8 +1,43 @@
 %% Define which steps to run
-steps=[7;8;9;10];
+steps=[7;8;9;10];['fig1'];%
 
 % Load settingsn
 run('settings_observation_data.m');
+run('settings_gia_parameterization.m');
+
+% === Dataset definitions (used across steps) ===
+dataset_names = {'measureItsLive-GEMB','measureItsLive-GSFC','DTU2016','DTU2025', ...
+                 'Buffalo2025-GEMB','Buffalo2025-GSFC','Buffalo2025-IMAU'};
+
+% Colors (color-blind-friendly palette)
+colors = {[0.2157, 0.4941, 0.7216],[0.5294, 0.6667, 0.8627],[0.9020, 0.6235, 0.0000], ...
+          [1.0000, 0.7647, 0.4000],[0.4157, 0.2392, 0.6039],[0.6196, 0.4235, 0.7843], ...
+          [0.7725, 0.6392, 0.8706]};
+
+% Bundle per-dataset fields into structured array
+datasets = {
+    struct('name','measureItsLive-GEMB', 'h',h_annual_1, 'lat',lat_sphere_1, 'lon',long_sphere_1, ...
+           'years',years_altimetry_1', 'years_masked',dhdt_masked_years{1}, 'X',X_1, 'Y',Y_1, ...
+           'dhdt',dhdt_annual_1, 'dhdt_masked',dhdt_masked{1})
+    struct('name','measureItsLive-GSFC', 'h',h_annual_2, 'lat',lat_sphere_2, 'lon',long_sphere_2, ...
+           'years',years_altimetry_2', 'years_masked',dhdt_masked_years{2}, 'X',X_2, 'Y',Y_2, ...
+           'dhdt',dhdt_annual_2, 'dhdt_masked',dhdt_masked{2})
+    struct('name','DTU2016', 'h',h_annual_3, 'lat',lat_sphere_3, 'lon',long_sphere_3, ...
+           'years',years_altimetry_3', 'years_masked',dhdt_masked_years{3}, 'X',X_3, 'Y',Y_3, ...
+           'dhdt',dhdt_annual_3, 'dhdt_masked',dhdt_masked{3})
+    struct('name','DTU2025', 'h',h_annual_4, 'lat',lat_sphere_4, 'lon',long_sphere_4, ...
+           'years',years_altimetry_4', 'years_masked',dhdt_masked_years{4}, 'X',X_4, 'Y',Y_4, ...
+           'dhdt',dhdt_annual_4, 'dhdt_masked',dhdt_masked{4})
+    struct('name','Buffalo2025-GEMB', 'h',h_annual_5, 'lat',lat_sphere_5, 'lon',long_sphere_5, ...
+           'years',years_altimetry_5', 'years_masked',dhdt_masked_years{5}, 'X',X_5, 'Y',Y_5, ...
+           'dhdt',dhdt_annual_5, 'dhdt_masked',dhdt_masked{5})
+    struct('name','Buffalo2025-GSFC', 'h',h_annual_6, 'lat',lat_sphere_6, 'lon',long_sphere_6, ...
+           'years',years_altimetry_6', 'years_masked',dhdt_masked_years{6}, 'X',X_6, 'Y',Y_6, ...
+           'dhdt',dhdt_annual_6, 'dhdt_masked',dhdt_masked{6})
+    struct('name','Buffalo2025-IMAU', 'h',h_annual_7, 'lat',lat_sphere_7, 'lon',long_sphere_7, ...
+           'years',years_altimetry_7', 'years_masked',dhdt_masked_years{7}, 'X',X_7, 'Y',Y_7, ...
+           'dhdt',dhdt_annual_7, 'dhdt_masked',dhdt_masked{7})
+};
 
 if any(steps==1)
     % Process GNSS data
@@ -26,7 +61,7 @@ if any(steps==2)
     [h_annual_1, dhdt_annual_1, dhdt_monthly_1, years_altimetry_1, lat_sphere_1, long_sphere_1, X_1, Y_1, x_3413_1, y_3413_1] = preprocess_ice_altimetry('measureItsLive-GEMB', false);
     [h_annual_2, dhdt_annual_2, dhdt_monthly_2, years_altimetry_2, lat_sphere_2, long_sphere_2, X_2, Y_2, x_3413_2, y_3413_2] = preprocess_ice_altimetry('measureItsLive-GSFC', false);
     [h_annual_3, dhdt_annual_3, dhdt_monthly_3, years_altimetry_3, lat_sphere_3, long_sphere_3, X_3, Y_3, x_3413_3, y_3413_3] = preprocess_ice_altimetry('DTU2016', false);
-    [h_annual_4, dhdt_annual_4, dhdt_monthly_4, years_altimetry_4, lat_sphere_4, long_sphere_4, X_4, Y_4, x_3413_4, y_3413_4] = preprocess_ice_altimetry('DTU2025', false);% DTU data reports-4186.2778 Gt between 2003-2022-12-31 and 4701 Gt if not correcting for firn, Elastic uplift and GIA
+    [h_annual_4, dhdt_annual_4, dhdt_monthly_4, years_altimetry_4, lat_sphere_4, long_sphere_4, X_4, Y_4, x_3413_4, y_3413_4, mass_cum4] = preprocess_ice_altimetry('DTU2025', false);% DTU data reports-4186.2778 Gt between 2003-2022-12-31 and 4701 Gt if not correcting for firn, Elastic uplift and GIA
     [h_annual_5, dhdt_annual_5, dhdt_monthly_5, years_altimetry_5, lat_sphere_5, long_sphere_5, X_5, Y_5, x_3413_5, y_3413_5] = preprocess_ice_altimetry('Buffalo2025-GEMB', false);
     [h_annual_6, dhdt_annual_6, dhdt_monthly_6, years_altimetry_6, lat_sphere_6, long_sphere_6, X_6, Y_6, x_3413_6, y_3413_6] = preprocess_ice_altimetry('Buffalo2025-GSFC', false);
     [h_annual_7, dhdt_annual_7, dhdt_monthly_7, years_altimetry_7, lat_sphere_7, long_sphere_7, X_7, Y_7, x_3413_7, y_3413_7] = preprocess_ice_altimetry('Buffalo2025-IMAU', false);
@@ -1000,7 +1035,7 @@ if any(steps==10)
     %ylim([0, max(max(y))*1.1]);
 
     % Save the figure
-    saveas(gcf, sprintf('residual_comparison_for_different_ice_loading_models-elastic %s.png', label));
+    % saveas(gcf, sprintf('residual_comparison_for_different_ice_loading_models-elastic %s.png', label));
 
     % Apply GIA corrections from Parviz
     % First, read in the gia data
@@ -1090,4 +1125,100 @@ if any(steps==10)
             'Buffalo2025-GEMB','Buffalo2025-GSFC','Buffalo2025-IMAU'}, ...
             'Location','northeast');
     grid on; box on;
-    ylim([-10 10]); % adjust range as appropriate
+
+
+    %% --- Plot 3D GIA-corrected residuals ---
+    figure('Color','w','Position',[100 100 1500 600]);
+    b2 = bar(x, y_corr_3D, 1);
+    hold on;
+
+    % Apply same colors for consistency
+    for k = 1:length(b2)
+        b2(k).FaceColor = b1(k).FaceColor;
+    end
+
+    set(gca, 'XTick', 1:length(stn_id), 'XTickLabel', stn_id, 'FontSize', 12);
+    xtickangle(45);
+    xlabel('Station ID');
+    ylabel('Residual (mm/yr)');
+    title('Residuals (3D GIA-corrected): GNSS - Model');
+    legend({'measureItsLive-GEMB','measureItsLive-GSFC','DTU2016','DTU2025',...
+            'Buffalo2025-GEMB','Buffalo2025-GSFC','Buffalo2025-IMAU'}, ...
+            'Location','northeast');
+    grid on; box on;
+    %ylim([-10 10]); % adjust range as appropriate
+end
+
+if any(steps=='fig1')
+% Generate a two panel figure of spatial map of mean of total masked ice thickness change (panel 1)
+% and 1-sigma on the ISSM Greenland mesh (panel 2)
+% Note to myself: Covered period varies depending on the availability of ice altimetry product. But for the elastic calculation, it makes sense to show the common period of the GNSS duration (which also varies by stations)
+
+    % spatial map of mean of total masked thickness change on the ISSM mesh
+    load_md = false;
+    label = 'with_mask';
+    if load_md
+        mds = cell(numel(datasets), 1);
+        for k = 1:numel(datasets)
+            ds = datasets{k};
+            fname = fullfile(fpath_mesh_model_regional_refined, sprintf('md%d_global_%s.mat', k, label));
+            disp(sprintf('loading md data for %s', ds.name));
+            mds{k} = loadmodel(fname);
+        end
+    end
+
+    dice_total = cell(numel(datasets), 1);
+    mean_dice = cell(numel(datasets), 1);
+    for k = 1:numel(datasets)
+        ds = datasets{k};
+        md = mds{k};
+        fprintf('\n=== Calculating mean and 1-sigma of total masked ice thickness change in (%s) ===\n', ds.name);
+        years_total = md.masstransport.spcthickness(end,end) - md.masstransport.spcthickness(end,1);
+        h = md.masstransport.spcthickness(1:end-1,:); % Disregard timestamps
+        dice = diff(h, 1, 2); % take differences along the time dimension
+        dice_total{k} = sum(dice, 2);
+        mean_dice{k} = dice_total{k} / years_total;
+        %plotmodel(md, 'data', dice_tota{k}, 'caxis', [-1 1], 'colormap', flip(custom_cmap))
+        %set(gca,'clipping','off') 
+        plotmodel(md, 'data', mean_dice{k},'figure', k,  'caxis', [-1 1], 'colormap', flip(custom_cmap), 'title', sprintf('%s: %d-%d', ds.name,md.masstransport.spcthickness(end,1),md.masstransport.spcthickness(end,end) ))
+        set(gca,'clipping','off')
+    end
+
+    % get mean and sigma across the whole data products
+    mean_dice_mat = cat(2, mean_dice{:});  % concatenate along 2nd dimension
+
+    % Compute mean and standard deviation across products (dimension 2)
+    mean_dice_all = mean(mean_dice_mat, 2, 'omitnan');
+    std_dice_all  = std(mean_dice_mat, 0, 2, 'omitnan');
+
+    % Statistics across the whole ice sheet
+    fprintf('Mean of mean_dice_all: %.3f m/yr\n', mean(mean_dice_all, 'omitnan'))
+    fprintf('Std of mean_dice_all: %.3f m/yr\n', std(mean_dice_all, 'omitnan'))
+    fprintf('Median std_dice_all: %.3f m/yr\n', median(std_dice_all, 'omitnan'))
+
+    xg = r_earth * cosd(lat_gnss) .* cosd(lon_gnss);
+    yg = r_earth * cosd(lat_gnss) .* sind(lon_gnss);
+    zg = r_earth * sind(lat_gnss);
+
+    plotmodel(md, 'data', mean_dice_all, 'figure', 10, 'caxis', [-1 1], 'colormap', flip(custom_cmap))
+    hold on
+    title('Inter-product mean thickness change (m/yr)')
+    set(gca,'clipping','off')
+
+    plotmodel(md, 'data', std_dice_all, 'figure', 11, 'caxis', [0 0.5], 'colormap',flip(colormap('hot')),'title','1-sigma across datasets')
+    hold on
+    plot3(xg, yg, zg, 'b.', 'MarkerSize', 14);
+    close(1);
+    for i = 1:length(stn_id)
+        text(xg(i), yg(i), zg(i), stn_id{i}, ...
+            'FontSize',8, 'Color','b', ...
+            'VerticalAlignment','bottom');
+    end
+    axis equal off
+    %light; lighting gouraud; material dull % add soft 3-D lighting
+    view(35,25)  %  view(50,70)
+    %title('Inter-product standard deviation (m/yr)')
+    set(gca,'clipping','off')
+    set(findobj(gca,'Type','text'), 'RotationMode','auto');
+
+end
