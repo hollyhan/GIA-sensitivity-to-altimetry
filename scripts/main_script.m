@@ -801,87 +801,56 @@ if any(steps==7)
     end
 
     if load_md_global
-        disp(sprintf('loading md data for %s', label))
-        md1_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md1_global_%s.mat', label)));
-        md2_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md2_global_%s.mat', label)));
-        md3_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md3_global_%s.mat', label)));
-        md4_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md4_global_%s.mat', label)));
-        md5_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md5_global_%s.mat', label)));
-        md6_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md6_global_%s.mat', label)));
-        md7_global = loadmodel(fullfile(fpath_mesh_model_regional_refined, sprintf('md7_global_%s.mat', label)));
+        mds = cell(numel(datasets), 1);
+        for k = 1:numel(datasets)
+            ds = datasets{k};
+            fname = fullfile(fpath_mesh_model_regional_refined, sprintf('md%d_global_%s.mat', k, label));
+            disp(sprintf('loading md data for %s', ds.name));
+            mds{k} = loadmodel(fname);
+        end
     end
 
     % Read love numbers from file from path specified in settings_observation_data.m
     load(fpath_love_numbers);
 
     % Run Green's function method to calculate GIA
-    % with ice profile #1
-    [md1_solved, vlm1_VE, vlm1_elastic, hlm1, accm1] = run_gia_greensFunction(md1_global, ht, lt, kt, false, lat_gnss, lon_gnss);
-    %md1_solved = run_gia(md1, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md1_solved');
+    mds_solved = cell(numel(datasets), 1);
+    vlm_total = cell(numel(datasets), 1);
+    vlm_elastic = cell(numel(datasets), 1);
+    hlm = cell(numel(datasets), 1);
+    accm = cell(numel(datasets), 1);
 
-    % with ice profile #2
-    [md2_solved, vlm2_VE, vlm2_elastic, hlm2, accm2] = run_gia_greensFunction(md2_global, ht, lt, kt, false, lat_gnss, lon_gnss);
-    %md2_solved = run_gia(md2, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md2_solved');
-
-    % with ice profile #3
-    [md3_solved, vlm3_VE, vlm3_elastic, hlm3, accm3] = run_gia_greensFunction(md3_global, ht, lt, kt, false, lat_gnss, lon_gnss);
-    %md3_solved = run_gia(md3, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md3_solved');
-
-    % with ice profile #4
-    [md4_solved, vlm4_VE, vlm4_elastic, hlm4, accm4] = run_gia_greensFunction(md4_global, ht, lt, kt, false, lat_gnss, lon_gnss);
-    %md4_solved = run_gia(md4, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md4_solved');
-
-    % with ice profile #5
-    [md5_solved, vlm5_VE, vlm5_elastic, hlm5, accm5] = run_gia_greensFunction(md5_global, ht, lt, kt, false, lat_gnss, lon_gnss);
-    %md5_solved = run_gia(md5, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md5_solved');
-
-    % with ice profile #6
-    [md6_solved, vlm6_VE, vlm6_elastic, hlm6, accm6] = run_gia_greensFunction(md6_global, ht, lt, kt, false, lat_gnss, lon_gnss);
-    %md6_solved = run_gia(md6, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md6_solved');
-
-    % with ice profile #7
-    [md7_solved, vlm7_VE, vlm7_elastic, hlm7, accm7] = run_gia_greensFunction(md7_global, ht, lt, kt, false, lat_gnss, lon_gnss);
-    %md7_solved = run_gia(md7, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, 'md7_solved');
-
+    for k = 1:numel(datasets)
+        [mds_solved{k}, vlm_total{k}, vlm_elastic{k}, hlm{k}, accm{k}] = run_gia_greensFunction(mds{k}, ht, lt, kt, false, lat_gnss, lon_gnss);
+        %new_name = sprintf('md%d_solved', k)
+        %mds_solved{k} = run_gia(mds{k}, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, new_name);
+    end
     disp('====================================');
 end
 
-
 if any(steps==8)
-    % Compute misfit
-    [~, mean1_err_gnss, vlm1_VE_GF_gnss_processed, misfit1, rate1, rate_gnss_fit, y_fit_model1, y_fit_gnss] = ...
-    compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md1_solved, vlm1_VE);
+    % Compute misfits between all model results and GNSS data
+    mean_err_gnss   = cell(numel(datasets), 1);
+    vlm_VE_GF_gnss  = cell(numel(datasets), 1);
+    misfit          = cell(numel(datasets), 1);
+    rate_model      = cell(numel(datasets), 1);
+    rate_gnss_fit   = cell(numel(datasets), 1);
+    y_fit_model     = cell(numel(datasets), 1);
+    y_fit_gnss      = cell(numel(datasets), 1);
 
-    [~, mean2_err_gnss, vlm2_VE_GF_gnss_processed, misfit2, rate2, rate_gnss_fit, y_fit_model2, y_fit_gnss] = ...
-    compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md2_solved, vlm2_VE);
-
-    [~, mean3_err_gnss, vlm3_VE_GF_gnss_processed, misfit3, rate3, rate_gnss_fit, y_fit_model3, y_fit_gnss] = ...
-    compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md3_solved, vlm3_VE);
-
-    [~, mean4_err_gnss, vlm4_VE_GF_gnss_processed, misfit4, rate4, rate_gnss_fit, y_fit_model4, y_fit_gnss] = ...
-    compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md4_solved, vlm4_VE);
-
-    [~, mean5_err_gnss, vlm5_VE_GF_gnss_processed, misfit5, rate5, rate_gnss_fit, y_fit_model5, y_fit_gnss] = ...
-    compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md5_solved, vlm5_VE);
-
-    [~, mean6_err_gnss, vlm6_VE_GF_gnss_processed, misfit6, rate6, rate_gnss_fit, y_fit_model6, y_fit_gnss] = ...
-    compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md6_solved, vlm6_VE);
-
-    [~, mean7_err_gnss, vlm7_VE_GF_gnss_processed, misfit7, rate7, rate_gnss_fit, y_fit_model7, y_fit_gnss] = ...
-    compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                        time_gnss, stn_id, md7_solved, vlm7_VE);
+    for k = 1:numel(datasets)
+        sprintf('Comparing dataset %s to GNSS data...\n', datasets{k}.name);
+        [~, mean_err_gnss{k}, vlm_VE_GF_gnss{k}, misfit{k}, ...
+            rate_model{k}, rate_gnss_fit{k}, y_fit_model{k}, y_fit_gnss{k}] = ...
+            compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
+                                time_gnss, stn_id, mds_solved{k}, vlm_total{k});
+    end
 end
 
 if any(steps==9)
+    save_fig = false;
     % Plot comparison of all GIA simulations vs GNSS data
     fprintf('\n=== Plotting GIA vs GNSS Comparison ===\n');
-
     % Define colorblind-friendly colors grouped by altimetry dataset, with different shades for FAC models
     % measureItsLive family (Blue shades)
     colors = {[0.2157, 0.4941, 0.7216], ...  % Dark Blue for measureItsLive-GEMB
@@ -891,27 +860,27 @@ if any(steps==9)
               [0.4157, 0.2392, 0.6039], ...  % Dark Purple for Buffalo2025-GEMB
               [0.6196, 0.4235, 0.7843], ...  % Medium Purple for Buffalo2025-GSFC
               [0.7725, 0.6392, 0.8706]};     % Light Purple for Buffalo2025-IMAU
-    dataset_names = {'measureItsLive-GEMB', 'measureItsLive-GSFC', 'DTU2016', 'DTU2025', 'Buffalo2025-GEMB', 'Buffalo2025-GSFC', 'Buffalo2025-IMAU'};
+
+    num_stations = length(data_gnss);
+    num_datasets = numel(datasets);
 
     % Create figure for each GNSS station
-    for n = 1:length(data_gnss)
+    for n = 1:num_stations
         figure('Position', [100, 100, 1200, 800]);
 
         % Plot GNSS data points
         plot(time_gnss{n}, data_gnss{n}, 'ko', 'MarkerSize', 8, 'DisplayName', 'GNSS Data', 'LineWidth', 2);
         hold on;
 
-        % Plot GNSS linear fit (should be the same for all comparisons)
-        plot(time_gnss{n}, y_fit_gnss{n}, 'k-', 'LineWidth', 3, 'DisplayName', sprintf('GNSS fit (%.2f mm/yr)', rate_gnss_fit(n)));
+        % Plot GNSS linear fit (y_fit_gnss should be the same, so just pick one)
+        plot(time_gnss{n}, y_fit_gnss{1}{n}, 'k-', 'LineWidth', 3, 'DisplayName', sprintf('GNSS fit (%.2f mm/yr)', rate_gnss_fit{k}(n)));
 
         % Plot all GIA model fits
-        plot(time_gnss{n}, y_fit_model1{n}, 'Color', colors{1}, 'LineWidth', 2, 'DisplayName', sprintf('%s (%.2f mm/yr)', dataset_names{1}, rate1(n)));
-        plot(time_gnss{n}, y_fit_model2{n}, 'Color', colors{2}, 'LineWidth', 2, 'DisplayName', sprintf('%s (%.2f mm/yr)', dataset_names{2}, rate2(n)));
-        plot(time_gnss{n}, y_fit_model3{n}, 'Color', colors{3}, 'LineWidth', 2, 'DisplayName', sprintf('%s (%.2f mm/yr)', dataset_names{3}, rate3(n)));
-        plot(time_gnss{n}, y_fit_model4{n}, 'Color', colors{4}, 'LineWidth', 2, 'DisplayName', sprintf('%s (%.2f mm/yr)', dataset_names{4}, rate4(n)));
-        plot(time_gnss{n}, y_fit_model5{n}, 'Color', colors{5}, 'LineWidth', 2, 'DisplayName', sprintf('%s (%.2f mm/yr)', dataset_names{5}, rate5(n)));
-        plot(time_gnss{n}, y_fit_model6{n}, 'Color', colors{6}, 'LineWidth', 2, 'DisplayName', sprintf('%s (%.2f mm/yr)', dataset_names{6}, rate6(n)));
-        plot(time_gnss{n}, y_fit_model7{n}, 'Color', colors{7}, 'LineWidth', 2, 'DisplayName', sprintf('%s (%.2f mm/yr)', dataset_names{7}, rate7(n)));
+        for k = 1:num_datasets
+            plot(time_gnss{n}, y_fit_model{k}{n}, 'Color', colors{k}, 'LineWidth', 2, ...
+                 'DisplayName', sprintf('%s (%.2f mm/yr)', ...
+                 datasets{k}.name, rate_model{k}(n)));
+        end
 
         xlabel('Time (year)', 'FontSize', 18);
         ylabel('VLM (mm)', 'FontSize', 18);
@@ -920,233 +889,168 @@ if any(steps==9)
         grid on;
         set(gca, 'FontSize', 18);
 
-        % Add text box with statistics
-        rates_all = [rate1(n), rate2(n), rate3(n), rate4(n), rate5(n), rate6(n), rate7(n)];
-        gnss_rate = rate_gnss_fit(n);
-        rate_diff = rates_all - gnss_rate;
-
-        %stats_text = sprintf(['GNSS Rate: %.2f mm/yr\n' ...
-        %                    'GIA Rates: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f mm/yr\n' ...
-        %                    'Rate Differences: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f mm/yr'], ...
-        %                    gnss_rate, rates_all, rate_diff);
-
-        %annotation('textbox', [0.02, 0.02, 0.4, 0.15], 'String', stats_text, ...
-        %           'EdgeColor', 'black', 'BackgroundColor', 'white', 'FontSize', 10);
-
         % Save figure with station name in the filename
-        saveas(gcf, sprintf('gia_vs_gnss_VLM_rate_at_station_%s.png', stn_id{n}));
+        if save_fig
+            saveas(gcf, sprintf('gia_vs_gnss_VLM_rate_at_station_%s.png', stn_id{n}));
+        end
     end
 
     % Create summary figure showing rate comparison across all stations
-    figure('Position', [100, 100, 1400, 900]);
-
     % Prepare data for plotting
-    num_stations = length(data_gnss);
-    rates_matrix = zeros(num_stations, 7);
-    gnss_rates = zeros(num_stations, 1);
+    rates_matrix = zeros(num_stations, num_datasets);
+    gnss_rates   = rate_gnss_fit{1}; %pick one
 
-    for n = 1:num_stations
-        rates_matrix(n, :) = [rate1(n), rate2(n), rate3(n), rate4(n), rate5(n), rate6(n), rate7(n)];
-        gnss_rates(n) = rate_gnss_fit(n); % Should be the same for all comparisons
+    for k = 1:num_datasets
+        rates_matrix(:, k) = rate_model{k};
     end
 
     % Create bar plot
     x_pos = 1:num_stations;
     bar_width = 0.8;
 
+    figure('Color','w','Position',[100 100 1500 600]);
     % Plot GNSS rates as reference dots
     plot(x_pos, gnss_rates, 'ko', 'MarkerSize', 4, 'MarkerFaceColor', 'black', 'DisplayName', 'GNSS Rate');
     hold on;
 
     % Plot GIA rates as bars
-    for i = 1:7
-        bar(x_pos + (i-4)*bar_width/7, rates_matrix(:, i), bar_width/7, ...
-            'FaceColor', colors{i}, 'DisplayName', dataset_names{i});
+    for k = 1:num_datasets
+        bar(x_pos + (k - (num_datasets+1)/2) * bar_width/num_datasets, ...
+            rates_matrix(:, k), bar_width/num_datasets, ...
+            'FaceColor', colors{k}, 'DisplayName', datasets{k}.name);
     end
 
+    % --- Labels & layout ---
     xlabel('GNSS Station', 'FontSize', 14);
     ylabel('VLM Rate (mm/yr)', 'FontSize', 14);
     title('GIA vs GNSS Rate Comparison Across All Stations', 'FontSize', 16);
     legend('show', 'Location', 'best', 'FontSize', 12);
     grid on;
     set(gca, 'FontSize', 12);
-    xticks(1:num_stations);
+    xticks(x_pos);
     xticklabels(stn_id);
     xtickangle(45);
 
     % Save the figure
-    saveas(gcf, sprintf('GIA vs GNSS Rate Comparison Across All Stations-elastic %s.png', label));
+    if save_fig
+        saveas(gcf, sprintf('GIA vs GNSS Rate Comparison Across All Stations-elastic %s.png', label));
+    end
 
     % Add statistics summary
     fprintf('\n=== Rate Comparison Summary ===\n');
-    fprintf('Station\tGNSS Rate\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n', dataset_names{1}, dataset_names{2}, dataset_names{3}, dataset_names{4}, dataset_names{5}, dataset_names{6}, dataset_names{7});
-    fprintf('-------\t---------\t---------\t---------\t---------\t---------\t---------\t---------\n');
+    fprintf('Station\tGNSS\t');
+    dataset_names = cellfun(@(d) d.name, datasets, 'UniformOutput', false);
+    fprintf('%s\t', dataset_names{:});
+    fprintf('\n--------------------------------------------------------------\n');
     for n = 1:num_stations
-        fprintf('%s\t%.2f\t\t%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f\n', ...
-                stn_id{n}, gnss_rates(n), rates_matrix(n, :));
+        fprintf('%s\t%.2f\t', stn_id{n}, gnss_rates(n));
+        fprintf('%.2f\t', rates_matrix(n, :));
+        fprintf('\n');
     end
 end
 
-if any(steps==10)
-    % Plot misfits comparison for each station
-    figure();
-    clf;
+if any(steps == 10)
+    fprintf('\n=== Plotting GIA–GNSS Residual Comparison ===\n');
 
-    % Prepare data for grouped bar plot - use individual station misfits
-    x = 1:length(stn_id);
-    %y = [misfit1, misfit2, misfit3, misfit4, misfit5, misfit6, misfit7];  % Each column is a dataset, each row is a station
+    save_fig = false;
 
-    % Plot the residual of the model vs the GNSS data (now using vector arrays directly)
-    y = [rate_gnss_fit - rate1, rate_gnss_fit - rate2, rate_gnss_fit - rate3, ...
-         rate_gnss_fit - rate4, rate_gnss_fit - rate5, rate_gnss_fit - rate6, ...
-         rate_gnss_fit - rate7];
+    num_datasets = numel(datasets);
+    num_stations = numel(stn_id);
 
-    % Create grouped bar plot
-    b = bar(x, y, 1);
-    hold on;
+    %% --- Compute residuals (GNSS − Model) ---
+    rate_gnss = rate_gnss_fit{1};   % identical across datasets
+    y = zeros(num_stations, num_datasets);
+    for k = 1:num_datasets
+        y(:, k) = rate_gnss - rate_model{k};
+    end
 
-    % Set colorblind-friendly colors grouped by altimetry dataset, with different shades for FAC models
-    % measureItsLive family (Blue shades)
-    b(1).FaceColor = [0.2157, 0.4941, 0.7216];  % Dark Blue for measureItsLive-GEMB
-    b(2).FaceColor = [0.5294, 0.6667, 0.8627];  % Light Blue for measureItsLive-GSFC
-    % DTU family (Orange shades)
-    b(3).FaceColor = [0.9020, 0.6235, 0.0000];  % Dark Orange for DTU2016
-    b(4).FaceColor = [1.0000, 0.7647, 0.4000];  % Light Orange for DTU2025
-    % Buffalo2025 family (Purple shades)
-    b(5).FaceColor = [0.4157, 0.2392, 0.6039];  % Dark Purple for Buffalo2025-GEMB
-    b(6).FaceColor = [0.6196, 0.4235, 0.7843];  % Medium Purple for Buffalo2025-GSFC  
-    b(7).FaceColor = [0.7725, 0.6392, 0.8706];  % Light Purple for Buffalo2025-IMAU
 
-    % Set x-axis labels to station IDs
-    set(gca, 'XTick', 1:length(stn_id));
-    set(gca, 'XTickLabel', stn_id);
-
-    % Customize the plot to match the reference style
-    legend('measureItsLive-GEMB', 'measureItsLive-GSFC', 'DTU2016', 'DTU2025', 'Buffalo2025-GEMB', 'Buffalo2025-GSFC', 'Buffalo2025-IMAU', 'Location', 'northeast');
-    xlabel('Station ID');
-    xtickangle(45);  % Angled labels for better readability
-    ylabel('Residual (mm/yr)');
-    title(sprintf('Residual Comparison for different ice loading models (Measured - Model)'));
-    set(gca, 'FontSize', 12);
-    grid on;
-    box on;
-
-    % Set y-axis limits similar to the reference (0 to 50)
-    %ylim([0, max(max(y))*1.1]);
-
-    % Save the figure
-    % saveas(gcf, sprintf('residual_comparison_for_different_ice_loading_models-elastic %s.png', label));
-
-    % Apply GIA corrections from Parviz
-    % First, read in the gia data
-    gia_data = read_VLM_sites(fpath_gia, true)
-    gia3D_mean = gia_data.VLM3D_mean;
-    gia3D_sigma = gia_data.VLM3D_sigma;
+    %% --- Read & apply GIA corrections ---
+    gia_data = read_VLM_sites(fpath_gia, true);
     gia1D_mean = gia_data.VLM1D_mean;
-    gia1D_sigma = gia_data.VLM1D_sigma
-    
-  %% Apply GIA correction to GNSS VLM residuals (1D & 3D)
+    gia3D_mean = gia_data.VLM3D_mean;
 
-    % Inputs:
-    %   y: [nStations x nAltimetry] matrix of GNSS residuals (mm/yr)
-    %   stn_id: {1 x nStations} cell array of station names
-    %   gia_data.name: [1 x nGiaStations] string array of names
-    %   gia_data.VLM1D_mean, gia_data.VLM3D_mean: GIA correction values (mm/yr)
-
-    % --- Preallocate corrected arrays ---
     y_corr_1D = NaN(size(y));
     y_corr_3D = NaN(size(y));
-    applied_gia_1D = NaN(size(y,1),1);
-    applied_gia_3D = NaN(size(y,1),1);
+    applied_gia_1D = NaN(num_stations,1);
+    applied_gia_3D = NaN(num_stations,1);
 
-    % --- Loop over each GNSS station ---
-    for i = 1:length(stn_id)
+    for i = 1:num_stations
         name_gnss = string(stn_id{i});
-
-        % Find the corresponding station in the GIA dataset
         match_idx = find(gia_data.name == name_gnss, 1);
-
         if ~isempty(match_idx)
-            % Extract both 1D and 3D GIA correction values for that site
-            gia_val_1D = gia_data.VLM1D_mean(match_idx);
-            gia_val_3D = gia_data.VLM3D_mean(match_idx);
-
-            % Apply correction to all altimetry datasets (column-wise)
+            gia_val_1D = gia1D_mean(match_idx);
+            gia_val_3D = gia3D_mean(match_idx);
             y_corr_1D(i,:) = y(i,:) - gia_val_1D;
             y_corr_3D(i,:) = y(i,:) - gia_val_3D;
-
-            % Store which correction was used
             applied_gia_1D(i) = gia_val_1D;
             applied_gia_3D(i) = gia_val_3D;
         else
-            % If no match, keep NaN and warn
             warning('⚠️ No GIA match found for station %s', name_gnss);
         end
     end
 
-    % --- Summary of matching ---
     nMatched = sum(~isnan(applied_gia_1D));
-    fprintf('\n✅ GIA correction (1D & 3D) applied for %d of %d stations.\n', nMatched, length(stn_id));
+    fprintf('\n✅ GIA corrections applied for %d of %d stations.\n', nMatched, num_stations);
 
-    % --- Combine into structure for clarity ---
-    residual_data = struct();
-    residual_data.station        = stn_id(:);
-    residual_data.y_raw          = y;
-    residual_data.gia_1D_applied = applied_gia_1D;
-    residual_data.gia_3D_applied = applied_gia_3D;
-    residual_data.y_corr_1D      = y_corr_1D;
-    residual_data.y_corr_3D      = y_corr_3D;
-
-    % --- Quick check summary ---
-    fprintf('\nExample (first altimetry dataset):\n');
-    disp(table(stn_id(:), applied_gia_1D, applied_gia_3D, ...
-            y(:,1), y_corr_1D(:,1), y_corr_3D(:,1), ...
-        'VariableNames', {'Station','GIA_1D(mm/yr)','GIA_3D(mm/yr)', ...
-                        'Original(mm/yr)','Corrected_1D(mm/yr)','Corrected_3D(mm/yr)'}));
-
-    % Draw plot for GIA corrected residuals
-    figure('Color','w','Position',[100 100 1500 600]);
-    b1 = bar(x, y_corr_1D, 1);
-    hold on;
-    b1(1).FaceColor = [0.2157, 0.4941, 0.7216];  % Dark Blue (measureItsLive-GEMB)
-    b1(2).FaceColor = [0.5294, 0.6667, 0.8627];  % Light Blue (measureItsLive-GSFC)
-    b1(3).FaceColor = [0.9020, 0.6235, 0.0000];  % Dark Orange (DTU2016)
-    b1(4).FaceColor = [1.0000, 0.7647, 0.4000];  % Light Orange (DTU2025)
-    b1(5).FaceColor = [0.4157, 0.2392, 0.6039];  % Dark Purple (Buffalo2025-GEMB)
-    b1(6).FaceColor = [0.6196, 0.4235, 0.7843];  % Medium Purple (Buffalo2025-GSFC)
-    b1(7).FaceColor = [0.7725, 0.6392, 0.8706];  % Light Purple (Buffalo2025-IMAU)
-
-    set(gca, 'XTick', 1:length(stn_id), 'XTickLabel', stn_id, 'FontSize', 12);
-    xtickangle(45);
-    xlabel('Station ID');
-    ylabel('Residual (mm/yr)');
-    title('Residuals (1D GIA-corrected): GNSS - Model');
-    legend({'measureItsLive-GEMB','measureItsLive-GSFC','DTU2016','DTU2025',...
-            'Buffalo2025-GEMB','Buffalo2025-GSFC','Buffalo2025-IMAU'}, ...
-            'Location','northeast');
-    grid on; box on;
-
-
-    %% --- Plot 3D GIA-corrected residuals ---
-    figure('Color','w','Position',[100 100 1500 600]);
-    b2 = bar(x, y_corr_3D, 1);
+    %% --- Plot raw residuals ---
+    figure('Color', 'w', 'Position', [100 100 1500 600]);
+    x = 1:num_stations;
+    b = bar(x, y, 1);
     hold on;
 
-    % Apply same colors for consistency
-    for k = 1:length(b2)
-        b2(k).FaceColor = b1(k).FaceColor;
+    colors = { [0.2157,0.4941,0.7216], [0.5294,0.6667,0.8627], ...
+               [0.9020,0.6235,0.0000], [1.0000,0.7647,0.4000], ...
+               [0.4157,0.2392,0.6039], [0.6196,0.4235,0.7843], ...
+               [0.7725,0.6392,0.8706] };
+    for k = 1:num_datasets
+        b(k).FaceColor = colors{k};
     end
 
-    set(gca, 'XTick', 1:length(stn_id), 'XTickLabel', stn_id, 'FontSize', 12);
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',12);
     xtickangle(45);
-    xlabel('Station ID');
-    ylabel('Residual (mm/yr)');
-    title('Residuals (3D GIA-corrected): GNSS - Model');
-    legend({'measureItsLive-GEMB','measureItsLive-GSFC','DTU2016','DTU2025',...
-            'Buffalo2025-GEMB','Buffalo2025-GSFC','Buffalo2025-IMAU'}, ...
-            'Location','northeast');
+    xlabel('Station ID'); ylabel('Residual (mm/yr)');
+    title('Residuals (GNSS − Model)');
+    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northeast');
     grid on; box on;
-    %ylim([-10 10]); % adjust range as appropriate
+
+    if save_fig
+        saveas(gcf, sprintf('Residuals_Raw_%s.png', label));
+    end
+
+    %% --- Quick check summary ---
+    disp(table(stn_id(:), applied_gia_1D, applied_gia_3D, ...
+        y(:,1), y_corr_1D(:,1), y_corr_3D(:,1), ...
+        'VariableNames', {'Station','GIA_1D(mm/yr)','GIA_3D(mm/yr)', ...
+                          'Raw(mm/yr)','Corrected_1D(mm/yr)','Corrected_3D(mm/yr)'}));
+
+    %% --- Plot 1D-corrected residuals ---
+    figure('Color','w','Position',[100 100 1500 600]);
+    b1 = bar(x, y_corr_1D, 1); hold on;
+    for k = 1:num_datasets, b1(k).FaceColor = colors{k}; end
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',12);
+    xtickangle(45);
+    xlabel('Station ID'); ylabel('Residual (mm/yr)');
+    title('Residuals (1D GIA-corrected): GNSS − Model');
+    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northeast');
+    grid on; box on;
+    if save_fig
+        saveas(gcf, sprintf('Residuals_GIA1D_corrected_%s.png', label));
+    end
+
+    %% --- Plot 3D-corrected residuals ---
+    figure('Color','w','Position',[100 100 1500 600]);
+    b2 = bar(x, y_corr_3D, 1); hold on;
+    for k = 1:num_datasets, b2(k).FaceColor = colors{k}; end
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',12);
+    xtickangle(45);
+    xlabel('Station ID'); ylabel('Residual (mm/yr)');
+    title('Residuals (3D GIA-corrected): GNSS − Model');
+    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northeast');
+    grid on; box on;
+    if save_fig
+        saveas(gcf, sprintf('Residuals_GIA3D_corrected_%s.png', label));
+    end
 end
 
 if any(steps=='fig1')
