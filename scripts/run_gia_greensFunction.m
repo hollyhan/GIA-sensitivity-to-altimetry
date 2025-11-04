@@ -170,6 +170,7 @@ function [md, vlm_total, vlm_elastic, hlm, accm] = run_gia_greensFunction(md, lo
     % Initialize output arrays
     vlm_elastic = zeros(n_out, nmelt);
     vlm_total = zeros(n_out, nmelt);
+    vlm_elastic_accum = zeros(n_out, 1);
 
     % If elastic only, only need GF with elastic love numbers
     if enable_viscous_deformation_present == false
@@ -260,11 +261,14 @@ function [md, vlm_total, vlm_elastic, hlm, accm] = run_gia_greensFunction(md, lo
 
                 % add the vlm signal from previous loading to complete convolution
                 vlm_k = vlm_k + vlm_timestep;
-
-                if elapsed_idx == 1
-                    vlm_elastic(:, k) = scalefactor * (gu_elastic * dm(:,k)); % save elastic response
-                end
             end
+
+            % --- Accumulate elastic contribution ---
+            vlm_elastic_step = scalefactor * (gu_elastic * dm(:, k));
+            vlm_elastic_accum = vlm_elastic_accum + vlm_elastic_step;
+            vlm_elastic(:, k) = vlm_elastic_accum;
+
+            % --- Total response ---
             vlm_total(:, k) = vlm_k;  % meters
         end
     end
