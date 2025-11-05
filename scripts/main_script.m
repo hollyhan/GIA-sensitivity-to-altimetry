@@ -1,5 +1,5 @@
 %% Define which steps to run
-steps=[7;8;9;10];['fig1'];%
+steps=[10];['fig1'];%
 
 % Load settingsn
 run('settings_observation_data.m');
@@ -965,36 +965,49 @@ if any(steps == 10)
     end
 
 
-    %% --- Read & apply GIA corrections ---
+    %% --- Read & apply the paleo and contemporary loading corrections ---
+    % Data from Parviz and Glenn for the paleo signals
     gia_data = read_VLM_sites(fpath_gia, true);
-    gia1D_mean = gia_data.VLM1D_mean;
-    gia3D_mean = gia_data.VLM3D_mean;
+    gia1D_total_mean = gia_data.VLM1D_mean; % this includes total signal (DG+LIA+PG)
+    gia3D_total_mean = gia_data.VLM3D_mean;
+    gia_DG3D_mean = gia_data.DG; % mean of 3D Deglacial-GIA
+    gia_DG3D_sigma = gia_data.DG_sigma;
+    gia_PG = gia_data.PG;
+    gia_LIA_mean = gia_data.LIA_mean;
+    gia_LIA_sigma = gia_data.LIA_sigma;
 
-    y_corr_1D = NaN(size(y));
-    y_corr_3D = NaN(size(y));
-    applied_gia_1D = NaN(num_stations,1);
-    applied_gia_3D = NaN(num_stations,1);
+    y_corr_1D_total = NaN(size(y));
+    y_corr_3D_total = NaN(size(y));
+    y_corr_3D_DG_PG = NaN(size(y));
+    applied_gia_1D_total = NaN(num_stations,1);
+    applied_gia_3D_total = NaN(num_stations,1);
+    applied_gia_3D_DG_PG = NaN(num_stations,1);
+    gia_val_LIA = NaN(num_stations,1);
 
     for i = 1:num_stations
         name_gnss = string(stn_id{i});
         match_idx = find(gia_data.name == name_gnss, 1);
         if ~isempty(match_idx)
-            gia_val_1D = gia1D_mean(match_idx);
-            gia_val_3D = gia3D_mean(match_idx);
-            y_corr_1D(i,:) = y(i,:) - gia_val_1D;
-            y_corr_3D(i,:) = y(i,:) - gia_val_3D;
-            applied_gia_1D(i) = gia_val_1D;
-            applied_gia_3D(i) = gia_val_3D;
+            gia_val_1D_total = gia1D_total_mean(match_idx);
+            gia_val_3D_total = gia3D_total_mean(match_idx);
+            gia_val_3D_DG_PG = gia_DG3D_mean(match_idx) + gia_PG(match_idx);
+            gia_val_LIA(i) = gia_data.LIA_from_residual(match_idx); % Note: this can change depending on Parvizs ansnwer to my question
+            y_corr_1D_total(i,:) = y(i,:) - gia_val_1D_total;
+            y_corr_3D_total(i,:) = y(i,:) - gia_val_3D_total;
+            y_corr_3D_DG_PG(i,:) = y(i,:) - gia_val_3D_DG_PG;
+            applied_gia_1D_total(i) = gia_val_1D_total;
+            applied_gia_3D_total(i) = gia_val_3D_total;
+            applied_gia_3D_DG_PG(i) = gia_val_3D_DG_PG;
         else
             warning('⚠️ No GIA match found for station %s', name_gnss);
         end
     end
 
-    nMatched = sum(~isnan(applied_gia_1D));
+    nMatched = sum(~isnan(applied_gia_1D_total));
     fprintf('\n✅ GIA corrections applied for %d of %d stations.\n', nMatched, num_stations);
 
     %% --- Plot raw residuals ---
-    figure('Color', 'w', 'Position', [100 100 1500 600]);
+    figure('Color', 'w', 'Position', [100 100 1700 600]);
     x = 1:num_stations;
     b = bar(x, y, 1);
     hold on;
@@ -1011,45 +1024,77 @@ if any(steps == 10)
     xtickangle(45);
     xlabel('Station ID'); ylabel('Residual (mm/yr)');
     title('Residuals (GNSS − Model)');
-    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northeast');
+    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest');
     grid on; box on;
-
+    ylim([-7 13]);
     if save_fig
         saveas(gcf, sprintf('Residuals_Raw_%s.png', label));
     end
 
-    %% --- Quick check summary ---
-    disp(table(stn_id(:), applied_gia_1D, applied_gia_3D, ...
-        y(:,1), y_corr_1D(:,1), y_corr_3D(:,1), ...
-        'VariableNames', {'Station','GIA_1D(mm/yr)','GIA_3D(mm/yr)', ...
-                          'Raw(mm/yr)','Corrected_1D(mm/yr)','Corrected_3D(mm/yr)'}));
+    %% --- Quick check summary for a single altimetry product---
+    disp(table(stn_id(:), applied_gia_1D_total, applied_gia_3D_total, applied_gia_3D_DG_PG, gia_val_LIA, ...
+        y(:,1), y_corr_1D_total(:,1), y_corr_3D_total(:,1), y_corr_3D_DG_PG(:,1), ...
+        'VariableNames', {'Station','GIA_1D_total(mm/yr)','GIA_3D_total(mm/yr)', 'GIA_3D_DG_PG', ...
+                          'Missing signal from LIA','Raw residual(mm/yr)','Corrected_1D_total(mm/yr)', ...
+                          'Corrected_3D_total(mm/yr)','Corrected_3D_DG_PG(mm/yr)'}));
 
     %% --- Plot 1D-corrected residuals ---
-    figure('Color','w','Position',[100 100 1500 600]);
-    b1 = bar(x, y_corr_1D, 1); hold on;
+    figure('Color','w','Position',[100 100 1700 600]);
+    b1 = bar(x, y_corr_1D_total, 1); hold on;
     for k = 1:num_datasets, b1(k).FaceColor = colors{k}; end
     set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',12);
     xtickangle(45);
     xlabel('Station ID'); ylabel('Residual (mm/yr)');
-    title('Residuals (1D GIA-corrected): GNSS − Model');
-    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northeast');
+    title('Residuals (1D GIA-corrected total signal): GNSS − Model');
+    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest');
     grid on; box on;
+    ylim([-7 13]);
     if save_fig
-        saveas(gcf, sprintf('Residuals_GIA1D_corrected_%s.png', label));
+        saveas(gcf, sprintf('Residuals_GIA1D_total_corrected_%s.png', label));
     end
 
     %% --- Plot 3D-corrected residuals ---
-    figure('Color','w','Position',[100 100 1500 600]);
-    b2 = bar(x, y_corr_3D, 1); hold on;
+    figure('Color','w','Position',[100 100 1700 600]);
+    b2 = bar(x, y_corr_3D_total, 1); hold on;
     for k = 1:num_datasets, b2(k).FaceColor = colors{k}; end
     set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',12);
     xtickangle(45);
     xlabel('Station ID'); ylabel('Residual (mm/yr)');
-    title('Residuals (3D GIA-corrected): GNSS − Model');
-    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northeast');
+    title('Residuals (3D GIA-corrected total signal): GNSS − Model');
+    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest');
+    ylim([-7 13]);
     grid on; box on;
     if save_fig
-        saveas(gcf, sprintf('Residuals_GIA3D_corrected_%s.png', label));
+        saveas(gcf, sprintf('Residuals_GIA3D_total_corrected_%s.png', label));
+    end
+
+    %% --- Plot 3D-corrected residuals for Deglacial and Peripheral Glaciers components only---
+    figure('Color','w','Position',[100 100 1700 600]);
+    b2 = bar(x, y_corr_3D_DG_PG, 1); hold on;
+    for k = 1:num_datasets, b2(k).FaceColor = colors{k}; end
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',12);
+    xtickangle(45);
+    xlabel('Station ID'); ylabel('Residual (mm/yr)');
+    title('Residuals (3D GIA-corrected for DG and PG signals): GNSS − Model');
+    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest');
+    ylim([-7 13]);
+    grid on; box on;
+    if save_fig
+        saveas(gcf, sprintf('Residuals_GIA3D_DG_PG_corrected_%s.png', label));
+    end
+
+    %% --- Plot residuals attributed to LIA---
+    figure('Color','w','Position',[100 100 1700 600]);
+    b2 = bar(x, gia_val_LIA, 1); hold on;
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',12);
+    xtickangle(45);
+    xlabel('Station ID'); ylabel('VLM(mm/yr)');
+    title('GIA signals that can be attributed to LIA');
+    legend('Total 3D GIA minus DG and PG components', 'Location','northwest');
+    grid on; box on;
+    ylim([-7 13]);
+    if save_fig
+        saveas(gcf, 'GIA_signals_attributed_to_LIA.png');
     end
 end
 
