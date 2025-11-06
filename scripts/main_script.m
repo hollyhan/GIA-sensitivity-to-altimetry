@@ -1006,6 +1006,31 @@ if any(steps == 10)
     nMatched = sum(~isnan(applied_gia_1D_total));
     fprintf('\n✅ GIA corrections applied for %d of %d stations.\n', nMatched, num_stations);
 
+    % Data from Berg et al. (2023) for the contemporary Perpheral Glacier Loading
+    elas_data = read_GNET_Elastic_VLM(fullfile(fpath_gnss_new,'Table_S1_GNET_VLM_Berg_et_al.xlsx'), false);
+
+    % Apply the elastic corrections to the residuals corrected for the total 3D GIA signal
+    y_corr_total = NaN(size(y));
+    applied_elas_GrCan = NaN(num_stations,1);
+    for i = 1:num_stations
+        name_gnss = string(stn_id{i});
+        match_idx = find(elas_data.station == name_gnss, 1);
+        if ~isempty(match_idx)
+            elas_GrCan = elas_data.Uelastic_GrPG(match_idx) + elas_data.Uelastic_CanPG(match_idx);
+            elas_GrCan_sigma = elas_data.Uelastic_GrPG_sigma(match_idx) + elas_data.Uelastic_CanPG_sigma(match_idx);
+            applied_elas_GrCan(i) = elas_GrCan;
+            applied_elas_GrCan(i)
+            applied_gia_3D_total(i)
+            y(i,1)
+            y_corr_total(i,:) = y(i,:) - applied_gia_3D_total(i) - applied_elas_GrCan(i)
+        else
+            warning('⚠️ No Elastic GrCan match found for station %s', name_gnss);
+        end
+    end
+
+    nMatched = sum(~isnan(applied_elas_GrCan));
+    fprintf('\n✅ Elastic Greenland and Canadian PG corrections applied for %d of %d stations.\n', nMatched, num_stations);
+
     %% --- Plot raw residuals ---
     figure('Color', 'w', 'Position', [100 100 1700 600]);
     x = 1:num_stations;
@@ -1031,12 +1056,24 @@ if any(steps == 10)
         saveas(gcf, sprintf('Residuals_Raw_%s.png', label));
     end
 
-    %% --- Quick check summary for a single altimetry product---
-    disp(table(stn_id(:), applied_gia_1D_total, applied_gia_3D_total, applied_gia_3D_DG_PG, gia_val_LIA, ...
-        y(:,1), y_corr_1D_total(:,1), y_corr_3D_total(:,1), y_corr_3D_DG_PG(:,1), ...
-        'VariableNames', {'Station','GIA_1D_total(mm/yr)','GIA_3D_total(mm/yr)', 'GIA_3D_DG_PG', ...
-                          'Missing signal from LIA','Raw residual(mm/yr)','Corrected_1D_total(mm/yr)', ...
-                          'Corrected_3D_total(mm/yr)','Corrected_3D_DG_PG(mm/yr)'}));
+    %% --- Quick check summary for a single altimetry product (choose the first dataset)---
+    nDigits = 2;
+    T = table(stn_id(:), ...
+            round(y(:,1), nDigits), ... % Raw residual
+            round(applied_gia_1D_total, nDigits), ...
+            round(applied_gia_3D_DG_PG, nDigits), ...
+            round(applied_gia_3D_total, nDigits), ...
+            round(applied_elas_GrCan, nDigits), ...
+            round(y_corr_1D_total(:,1), nDigits), ...
+            round(y_corr_3D_DG_PG(:,1), nDigits), ...
+            round(y_corr_3D_total(:,1), nDigits), ...
+            round(y_corr_total(:,1), nDigits), ...
+            'VariableNames', {'Station','Raw residual', 'GIA_1D_total','GIA_3D_DG_PG','GIA_3D_total', ...
+                                'contemporary PG (GrCan)','Corrected_1D_total', ...
+                                'Corrected_3D_DG_PG','Corrected_3D_total','Corrected_total'});
+    disp(sprintf('Displaying applied signals and corrected residuals (mm/yr for %s)', datasets{1}.name));
+    disp(T)
+
 
     %% --- Plot 1D-corrected residuals ---
     figure('Color','w','Position',[100 100 1700 600]);
@@ -1095,6 +1132,21 @@ if any(steps == 10)
     ylim([-7 13]);
     if save_fig
         saveas(gcf, 'GIA_signals_attributed_to_LIA.png');
+    end
+
+    %% --- Plot residuals corrected for 3D GIA, LIA, and contemporary PG (GrCan)---
+    figure('Color','w','Position',[100 100 1700 600]);
+    b2 = bar(x, y_corr_total, 1); hold on;
+    for k = 1:num_datasets, b2(k).FaceColor = colors{k}; end
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',12);
+    xtickangle(45);
+    xlabel('Station ID'); ylabel('Residual (mm/yr)');
+    title('Residuals (corrected for 3D GIA, LIA, PG and contemporary PG in Greenland and Canada)');
+    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest');
+    ylim([-7 13]);
+    grid on; box on;
+    if save_fig
+        saveas(gcf, sprintf('Residuals_corrected_for_3D_GIA_LIA_PG_and_contemporary_PG_GrCan_%s.png', label));
     end
 end
 
