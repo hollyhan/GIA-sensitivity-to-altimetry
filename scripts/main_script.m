@@ -1,5 +1,5 @@
 %% Define which steps to run
-steps=[10];['fig1'];%
+steps=['fig1'];%
 
 % Load settingsn
 run('settings_observation_data.m');
@@ -15,6 +15,11 @@ colors = {[0.2157, 0.4941, 0.7216],[0.5294, 0.6667, 0.8627],[0.9020, 0.6235, 0.0
           [0.7725, 0.6392, 0.8706]};
 
 % Bundle per-dataset fields into structured array
+load_dhdt_masked_data = false;
+if load_dhdt_masked_data
+    load('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/dhdt_masked.mat');
+    % If data does not exist, run Step 3
+end
 datasets = {
     struct('name','measureItsLive-GEMB', 'h',h_annual_1, 'lat',lat_sphere_1, 'lon',long_sphere_1, ...
            'years',years_altimetry_1', 'years_masked',dhdt_masked_years{1}, 'X',X_1, 'Y',Y_1, ...
@@ -39,6 +44,11 @@ datasets = {
            'dhdt',dhdt_annual_7, 'dhdt_masked',dhdt_masked{7})
 };
 
+np = 64; % Number of colors
+blue_to_white = [linspace(0,1,np/2)', linspace(0,1,np/2)', ones(np/2,1)];
+white_to_red = [ones(np/2,1), linspace(1,0,np/2)', linspace(1,0,np/2)'];
+custom_cmap = [blue_to_white; white_to_red];
+
 if any(steps==1)
     % Process GNSS data
     [lat_gnss, lon_gnss, data_gnss, err_gnss, time_gnss, R2_gnss] = preprocess_gnss_data(stn_id, fpath_gnss, fname_coord_gnss, n_degree);
@@ -61,7 +71,7 @@ if any(steps==2)
     [h_annual_1, dhdt_annual_1, dhdt_monthly_1, years_altimetry_1, lat_sphere_1, long_sphere_1, X_1, Y_1, x_3413_1, y_3413_1] = preprocess_ice_altimetry('measureItsLive-GEMB', false);
     [h_annual_2, dhdt_annual_2, dhdt_monthly_2, years_altimetry_2, lat_sphere_2, long_sphere_2, X_2, Y_2, x_3413_2, y_3413_2] = preprocess_ice_altimetry('measureItsLive-GSFC', false);
     [h_annual_3, dhdt_annual_3, dhdt_monthly_3, years_altimetry_3, lat_sphere_3, long_sphere_3, X_3, Y_3, x_3413_3, y_3413_3] = preprocess_ice_altimetry('DTU2016', false);
-    [h_annual_4, dhdt_annual_4, dhdt_monthly_4, years_altimetry_4, lat_sphere_4, long_sphere_4, X_4, Y_4, x_3413_4, y_3413_4, mass_cum4] = preprocess_ice_altimetry('DTU2025', false);% DTU data reports-4186.2778 Gt between 2003-2022-12-31 and 4701 Gt if not correcting for firn, Elastic uplift and GIA
+    [h_annual_4, dhdt_annual_4, dhdt_monthly_4, years_altimetry_4, lat_sphere_4, long_sphere_4, X_4, Y_4, x_3413_4, y_3413_4] = preprocess_ice_altimetry('DTU2025', false);% DTU data reports-4186.2778 Gt between 2003-2022-12-31 and 4701 Gt if not correcting for firn, Elastic uplift and GIA
     [h_annual_5, dhdt_annual_5, dhdt_monthly_5, years_altimetry_5, lat_sphere_5, long_sphere_5, X_5, Y_5, x_3413_5, y_3413_5] = preprocess_ice_altimetry('Buffalo2025-GEMB', false);
     [h_annual_6, dhdt_annual_6, dhdt_monthly_6, years_altimetry_6, lat_sphere_6, long_sphere_6, X_6, Y_6, x_3413_6, y_3413_6] = preprocess_ice_altimetry('Buffalo2025-GSFC', false);
     [h_annual_7, dhdt_annual_7, dhdt_monthly_7, years_altimetry_7, lat_sphere_7, long_sphere_7, X_7, Y_7, x_3413_7, y_3413_7] = preprocess_ice_altimetry('Buffalo2025-IMAU', false);
@@ -793,6 +803,7 @@ if any(steps==7)
 
     loading_with_mask = true;
     load_md_global = true;
+    save_md = true;
 
     if loading_with_mask
         label = 'with_mask';
@@ -824,11 +835,36 @@ if any(steps==7)
         [mds_solved{k}, vlm_total{k}, vlm_elastic{k}, hlm{k}, accm{k}] = run_gia_greensFunction(mds{k}, ht, lt, kt, false, lat_gnss, lon_gnss);
         %new_name = sprintf('md%d_solved', k)
         %mds_solved{k} = run_gia(mds{k}, ht, kt, lt, tht, tkt, tlt, pmtf1, pmtf2, time, new_name);
+
+        if save_md
+            md_save = mds_solved{k};
+            vlm_save = vlm_total{k};
+            disp(sprintf('Saving solved model object to file: %s', fullfile(fpath_results_general, sprintf('md%d_solved_%s_%s.mat', k, rheology_choice, label))));
+            save(fullfile(fpath_results_general, sprintf('md%d_solved_%s_%s.mat', k, rheology_choice, label)), 'md_save');
+            save(fullfile(fpath_results_general, sprintf('vlm%d_total_%s_%s.mat', k, rheology_choice, label)), 'vlm_save');
+        end
     end
     disp('====================================');
 end
 
 if any(steps==8)
+
+    load_md_solved = true;
+    if load_md_solved
+        mds_solved = cell(numel(datasets), 1);
+        for k = 1:numel(datasets)
+            fname = fullfile(fpath_results_general, sprintf('md%d_solved_%s_%s.mat', k, rheology_choice, label));
+            disp(sprintf('loading md_solved data %s for %s', fname, datasets{k}.name));
+            mds_solved{k} = loadmodel(fname);
+        end
+        vlm_total = cell(numel(datasets), 1);
+        for k = 1:numel(datasets)
+            fname = fullfile(fpath_results_general, sprintf('vlm%d_total_%s_%s.mat', k, rheology_choice, label));
+            disp(sprintf('loading vlm_total data %s for %s', fname, datasets{k}.name));
+            vlm_total{k} = load(fname).vlm_save;
+        end
+    end
+
     % Compute misfits between all model results and GNSS data
     mean_err_gnss   = cell(numel(datasets), 1);
     vlm_VE_GF_gnss  = cell(numel(datasets), 1);
@@ -839,7 +875,8 @@ if any(steps==8)
     y_fit_gnss      = cell(numel(datasets), 1);
 
     for k = 1:numel(datasets)
-        sprintf('Comparing dataset %s to GNSS data...\n', datasets{k}.name);
+        disp('------------------------------------')
+        disp(sprintf('Comparing dataset %s to GNSS data...\n', datasets{k}.name));
         [~, mean_err_gnss{k}, vlm_VE_GF_gnss{k}, misfit{k}, ...
             rate_model{k}, rate_gnss_fit{k}, y_fit_model{k}, y_fit_gnss{k}] = ...
             compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
@@ -891,7 +928,7 @@ if any(steps==9)
 
         % Save figure with station name in the filename
         if save_fig
-            saveas(gcf, sprintf('gia_vs_gnss_VLM_rate_at_station_%s.png', stn_id{n}));
+            saveas(gcf, fullfile(fpath_results_figures, sprintf('gia_vs_gnss_VLM_rate_at_station_%s_%s_%s.png', stn_id{n}, rheology_choice, label)));
         end
     end
 
@@ -908,9 +945,9 @@ if any(steps==9)
     x_pos = 1:num_stations;
     bar_width = 0.8;
 
-    figure('Color','w','Position',[100 100 1500 600]);
+    figure('Color','w','Position',[100 100 1700 600]);
     % Plot GNSS rates as reference dots
-    plot(x_pos, gnss_rates, 'ko', 'MarkerSize', 4, 'MarkerFaceColor', 'black', 'DisplayName', 'GNSS Rate');
+    plot(x_pos, gnss_rates, 'ko', 'MarkerSize', 5.5, 'MarkerFaceColor', 'black', 'DisplayName', 'GNSS Rate');
     hold on;
 
     % Plot GIA rates as bars
@@ -924,7 +961,7 @@ if any(steps==9)
     xlabel('GNSS Station', 'FontSize', 14);
     ylabel('VLM Rate (mm/yr)', 'FontSize', 14);
     title('GIA vs GNSS Rate Comparison Across All Stations', 'FontSize', 16);
-    legend('show', 'Location', 'best', 'FontSize', 12);
+    legend('show', 'Location', 'northwest', 'FontSize', 12);
     grid on;
     set(gca, 'FontSize', 12);
     xticks(x_pos);
@@ -933,7 +970,7 @@ if any(steps==9)
 
     % Save the figure
     if save_fig
-        saveas(gcf, sprintf('GIA vs GNSS Rate Comparison Across All Stations-elastic %s.png', label));
+        saveas(gcf, fullfile(fpath_results_figures, sprintf('GIA vs GNSS Rate Comparison Across All Stations_%s_%s.png', rheology_choice, label)));
     end
 
     % Add statistics summary
@@ -952,7 +989,7 @@ end
 if any(steps == 10)
     fprintf('\n=== Plotting GIA–GNSS Residual Comparison ===\n');
 
-    save_fig = false;
+    save_fig = true;
 
     num_datasets = numel(datasets);
     num_stations = numel(stn_id);
@@ -1011,24 +1048,21 @@ if any(steps == 10)
 
     % Apply the elastic corrections to the residuals corrected for the total 3D GIA signal
     y_corr_total = NaN(size(y));
-    applied_elas_GrCan = NaN(num_stations,1);
+    applied_elas_Can = NaN(num_stations,1);
     for i = 1:num_stations
         name_gnss = string(stn_id{i});
         match_idx = find(elas_data.station == name_gnss, 1);
         if ~isempty(match_idx)
-            elas_GrCan = elas_data.Uelastic_GrPG(match_idx) + elas_data.Uelastic_CanPG(match_idx);
-            elas_GrCan_sigma = elas_data.Uelastic_GrPG_sigma(match_idx) + elas_data.Uelastic_CanPG_sigma(match_idx);
-            applied_elas_GrCan(i) = elas_GrCan;
-            applied_elas_GrCan(i)
-            applied_gia_3D_total(i)
-            y(i,1)
-            y_corr_total(i,:) = y(i,:) - applied_gia_3D_total(i) - applied_elas_GrCan(i)
+            elas_Can = elas_data.Uelastic_CanPG(match_idx); % only consider the Canadian component because the Greenland component is already included
+            elas_Can_sigma = elas_data.Uelastic_CanPG_sigma(match_idx);
+            applied_elas_Can(i) = elas_Can;
+            y_corr_total(i,:) = y(i,:) - applied_gia_3D_total(i) - applied_elas_Can(i);
         else
             warning('⚠️ No Elastic GrCan match found for station %s', name_gnss);
         end
     end
 
-    nMatched = sum(~isnan(applied_elas_GrCan));
+    nMatched = sum(~isnan(applied_elas_Can));
     fprintf('\n✅ Elastic Greenland and Canadian PG corrections applied for %d of %d stations.\n', nMatched, num_stations);
 
     %% --- Plot raw residuals ---
@@ -1063,13 +1097,13 @@ if any(steps == 10)
             round(applied_gia_1D_total, nDigits), ...
             round(applied_gia_3D_DG_PG, nDigits), ...
             round(applied_gia_3D_total, nDigits), ...
-            round(applied_elas_GrCan, nDigits), ...
+            round(applied_elas_Can, nDigits), ...
             round(y_corr_1D_total(:,1), nDigits), ...
             round(y_corr_3D_DG_PG(:,1), nDigits), ...
             round(y_corr_3D_total(:,1), nDigits), ...
             round(y_corr_total(:,1), nDigits), ...
             'VariableNames', {'Station','Raw residual', 'GIA_1D_total','GIA_3D_DG_PG','GIA_3D_total', ...
-                                'contemporary PG (GrCan)','Corrected_1D_total', ...
+                                'contemporary PG (Can)','Corrected_1D_total', ...
                                 'Corrected_3D_DG_PG','Corrected_3D_total','Corrected_total'});
     disp(sprintf('Displaying applied signals and corrected residuals (mm/yr for %s)', datasets{1}.name));
     disp(T)
@@ -1087,7 +1121,7 @@ if any(steps == 10)
     grid on; box on;
     ylim([-7 13]);
     if save_fig
-        saveas(gcf, sprintf('Residuals_GIA1D_total_corrected_%s.png', label));
+        saveas(gcf, fullfile(fpath_results_figures, sprintf('Residuals_GIA1D_total_corrected_%s_%s.png', rheology_choice, label)));
     end
 
     %% --- Plot 3D-corrected residuals ---
@@ -1102,7 +1136,7 @@ if any(steps == 10)
     ylim([-7 13]);
     grid on; box on;
     if save_fig
-        saveas(gcf, sprintf('Residuals_GIA3D_total_corrected_%s.png', label));
+        saveas(gcf, fullfile(fpath_results_figures, sprintf('Residuals_GIA3D_total_corrected_%s_%s.png', rheology_choice, label)));
     end
 
     %% --- Plot 3D-corrected residuals for Deglacial and Peripheral Glaciers components only---
@@ -1117,7 +1151,7 @@ if any(steps == 10)
     ylim([-7 13]);
     grid on; box on;
     if save_fig
-        saveas(gcf, sprintf('Residuals_GIA3D_DG_PG_corrected_%s.png', label));
+        saveas(gcf, fullfile(fpath_results_figures, sprintf('Residuals_GIA3D_DG_PG_corrected_%s_%s.png', rheology_choice, label)));
     end
 
     %% --- Plot residuals attributed to LIA---
@@ -1131,7 +1165,7 @@ if any(steps == 10)
     grid on; box on;
     ylim([-7 13]);
     if save_fig
-        saveas(gcf, 'GIA_signals_attributed_to_LIA.png');
+        saveas(gcf, fullfile(fpath_results_figures, sprintf('GIA_signals_attributed_to_LIA_%s_%s.png', rheology_choice, label)));
     end
 
     %% --- Plot residuals corrected for 3D GIA, LIA, and contemporary PG (GrCan)---
@@ -1141,12 +1175,12 @@ if any(steps == 10)
     set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',12);
     xtickangle(45);
     xlabel('Station ID'); ylabel('Residual (mm/yr)');
-    title('Residuals (corrected for 3D GIA, LIA, PG and contemporary PG in Greenland and Canada)');
+    title('Residuals (corrected for 3D GIA, LIA, PG and contemporary PG in Canada)');
     legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest');
     ylim([-7 13]);
     grid on; box on;
     if save_fig
-        saveas(gcf, sprintf('Residuals_corrected_for_3D_GIA_LIA_PG_and_contemporary_PG_GrCan_%s.png', label));
+        saveas(gcf, fullfile(fpath_results_figures, sprintf('Residuals_corrected_for_3D_GIA_LIA_PG_and_contemporary_PG_Can_%s_%s.png', rheology_choice, label)));
     end
 end
 
@@ -1170,18 +1204,28 @@ if any(steps=='fig1')
 
     dice_total = cell(numel(datasets), 1);
     mean_dice = cell(numel(datasets), 1);
+    h = cell(numel(datasets), 1);
+
+    % First, choose a common time window for comparison
+    common_year_start = 2003;
+    common_year_end =2020;
+    common_years_total = common_year_end - common_year_start;
+    fprintf('Common period selected: %d-%d', common_year_start, common_year_end);
+
+
     for k = 1:numel(datasets)
         ds = datasets{k};
         md = mds{k};
         fprintf('\n=== Calculating mean and 1-sigma of total masked ice thickness change in (%s) ===\n', ds.name);
-        years_total = md.masstransport.spcthickness(end,end) - md.masstransport.spcthickness(end,1);
-        h = md.masstransport.spcthickness(1:end-1,:); % Disregard timestamps
-        dice = diff(h, 1, 2); % take differences along the time dimension
+        idx_start = find(md.masstransport.spcthickness(end,:) == common_year_start);
+        idx_end = find(md.masstransport.spcthickness(end,:) == common_year_end);
+        fprintf('Selecting ice thickness during the common time between year %d and %d',md.masstransport.spcthickness(end,idx_start),md.masstransport.spcthickness(end,idx_end));
+        h{k} = md.masstransport.spcthickness(1:end-1,idx_start:idx_end);
+        dice = diff(h{k}, 1, 2); % take differences along the time dimension
         dice_total{k} = sum(dice, 2);
-        mean_dice{k} = dice_total{k} / years_total;
-        %plotmodel(md, 'data', dice_tota{k}, 'caxis', [-1 1], 'colormap', flip(custom_cmap))
-        %set(gca,'clipping','off') 
-        plotmodel(md, 'data', mean_dice{k},'figure', k,  'caxis', [-1 1], 'colormap', flip(custom_cmap), 'title', sprintf('%s: %d-%d', ds.name,md.masstransport.spcthickness(end,1),md.masstransport.spcthickness(end,end) ))
+        mean_dice{k} = dice_total{k} / common_years_total;
+        %plotmodel(md, 'data', dice_total{k}, 'caxis', [-1 1], 'colormap', flip(custom_cmap))
+        plotmodel(md, 'data', mean_dice{k},'figure', k,  'caxis', [-1 1], 'colormap', flip(custom_cmap), 'title', sprintf('%s: %d-%d', ds.name, common_year_start, common_year_end))
         set(gca,'clipping','off')
     end
 
@@ -1201,11 +1245,13 @@ if any(steps=='fig1')
     yg = r_earth * cosd(lat_gnss) .* sind(lon_gnss);
     zg = r_earth * sind(lat_gnss);
 
+    % panel 1
     plotmodel(md, 'data', mean_dice_all, 'figure', 10, 'caxis', [-1 1], 'colormap', flip(custom_cmap))
     hold on
     title('Inter-product mean thickness change (m/yr)')
     set(gca,'clipping','off')
 
+    % panel 2
     plotmodel(md, 'data', std_dice_all, 'figure', 11, 'caxis', [0 0.5], 'colormap',flip(colormap('hot')),'title','1-sigma across datasets')
     hold on
     plot3(xg, yg, zg, 'b.', 'MarkerSize', 14);
@@ -1222,4 +1268,99 @@ if any(steps=='fig1')
     set(gca,'clipping','off')
     set(findobj(gca,'Type','text'), 'RotationMode','auto');
 
+    % Calculate and plot differences bewteen mean and each dataset in total thickness change (Supp. Fig. 1)
+    for i = 1:length(datasets)
+        [maxval, idxmax] = max(mean_dice_all - dice_total{i});
+        [minval, idxmin] = min(mean_dice_all - dice_total{i});
+        % Extract coordinates of the max vertex (from your earlier result)
+        x_max = md.mesh.x(idxmax);
+        y_max = md.mesh.y(idxmax);
+        z_max = md.mesh.z(idxmax);
+        x_min = md.mesh.x(idxmin);
+        y_min = md.mesh.y(idxmin);
+        z_min = md.mesh.z(idxmin);
+
+        plotmodel(md, 'data', mean_dice_all - dice_total{i}, 'figure', i+20, 'caxis', [-25 25], 'colormap', flip(custom_cmap))
+        hold on
+        plot3(x_max, y_max, z_max, 'm*', 'MarkerSize', 10, 'LineWidth', 2)
+        %plot3(x_min, y_min, z_min, 'k*', 'MarkerSize', 10, 'LineWidth', 2)
+        title(sprintf(['Difference from inter-product mean thickness change\nfor %s (m/yr)'], datasets{i}.name))
+        for i = 1:length(stn_id)
+            text(xg(i), yg(i), zg(i), stn_id{i}, ...
+                'FontSize',12, 'Color','k', ...
+                'VerticalAlignment','bottom');
+        end
+        set(gca,'clipping','off')
+        % --- Add text showing min and max values in panel ---
+        xlims = xlim;
+        ylims = ylim;
+        text(xlims(1) + 0.02*range(xlims), ylims(2) - 0.05*range(ylims), ...
+            sprintf('max = %.3f m/yr', maxval), 'Color', 'k', 'FontSize', 10, 'FontWeight', 'bold')
+
+        text(xlims(1) + 0.02*range(xlims), ylims(2) - 0.10*range(ylims), ...
+            sprintf('min = %.3f m/yr', minval), 'Color', 'k', 'FontSize', 10, 'FontWeight', 'bold')
+    end
+
+
+    % Calculate and plot the maximum and minimum total and mean ice thickness changes for each altimetry data
+    % Plot the base data map
+    max_total_val = zeros(1,length(datasets));
+    idx_total_max = zeros(1,length(datasets));
+    min_total_val = zeros(1,length(datasets));
+    idx_total_min = zeros(1,length(datasets));
+    max_mean_val = zeros(1,length(datasets));
+    idx_mean_max = zeros(1,length(datasets));
+    min_mean_val = zeros(1,length(datasets));
+    idx_mean_min = zeros(1,length(datasets));
+
+    for k = 1:length(datasets)
+        ds = datasets{k};
+        md = mds{k};
+
+        vals_total = dice_total{k};
+        vals_mean = mean_dice{k};
+
+        % Find the index and value of the maximum
+        [max_total_val(k), idx_total_max(k)] = max(vals_total);
+        [min_total_val(k), idx_total_min(k)] = min(vals_total);
+        [max_mean_val(k), idx_mean_max(k)] = max(vals_mean);
+        [min_mean_val(k), idx_mean_min(k)] = min(vals_mean);
+
+        % Extract coordinates of the max vertex
+        x_max = mds{k}.mesh.x(idx_total_max(k));
+        y_max = mds{k}.mesh.y(idx_total_max(k));
+        z_max = mds{k}.mesh.z(idx_total_max(k));
+
+        x_min = mds{k}.mesh.x(idx_total_min(k));
+        y_min = mds{k}.mesh.y(idx_total_min(k));
+        z_min = mds{k}.mesh.z(idx_total_min(k));
+
+        plotmodel(md, 'data', dice_total{k}, 'figure', k+30, 'caxis', [-100 100], 'colormap', flip(custom_cmap))
+        hold on
+        title(sprintf(['Total thickness change between %d and %d \nfor %s (m)'], common_year_start, common_year_end, ds.name))
+        % Overlay the point — red star, large and visible
+        plot3(x_max, y_max, z_max, 'r*', 'MarkerSize', 10, 'LineWidth', 2)
+        plot3(x_min, y_min, z_min, 'k*', 'MarkerSize', 10, 'LineWidth', 2)
+
+        % Optionally add a label
+        %text(x_max, y_max, z_max, sprintf('Max total: %.2f m \nMax mean: %.2f m/yr', max_total_val(k), max_mean_val(k)), ...
+        %     'Color', 'k', 'FontSize', 7, 'FontWeight', 'bold', ...
+        %     'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center');
+        % Optionally add a label
+        %text(x_min, y_min, z_min, sprintf('Min total: %.2f m \nMin mean: %.2f m/yr, ', min_total_val(k), min_mean_va(k))), ...
+        %     'Color', 'k', 'FontSize', 7, 'FontWeight', 'bold', ...
+        %     'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center');
+        sprintf('For dataset: %s', ds.name)
+        sprintf('Max total change: %.2f m \nMax mean change: %.2f m/yr at index %d' , max_total_val(k), max_mean_val(k), idx_mean_max(k))
+        sprintf('Min total change: %.2f m \nMin mean change: %.2f m/yr at index %d' , min_total_val(k), min_mean_val(k), idx_mean_min(k))
+
+        for i = 1:length(stn_id)
+            plot3(xg(i), yg(i), zg(i), 'ko', 'MarkerSize', 6, 'MarkerFaceColor', 'r');  % red filled circle
+
+            text(xg(i), yg(i), zg(i), stn_id{i}, ...
+                'FontSize',12, 'Color','k', ...
+                'VerticalAlignment','bottom');
+        end
+        set(gca,'clipping','off')
+    end
 end
