@@ -1,9 +1,21 @@
-%% Define which steps to run
-steps=['fig1'];%
+% addpaths
+addpath('~/Desktop/Code/matlab_functions/arctic-mapping-tools/')
+addpath('~/Desktop/Code/matlab_functions/ITS_LIVE/')
+addpath('~/Desktop/Data/Altimetry/Greenland/')
 
-% Load settingsn
+%% Define which steps to run
+steps=[13];%
+
+% Load settings
 run('settings_observation_data.m');
 run('settings_gia_parameterization.m');
+
+% Read in external gnss data
+if use_berg_et_al
+    % update the gnss rates for the 53 stations
+    elas_data = read_GNET_Elastic_VLM(fullfile(fpath_gnss_new,'Table_S1_GNET_VLM_Berg_et_al.xlsx'), false);
+    %stn_id_berg = cellstr(elas_data.station)';
+end
 
 % === Dataset definitions (used across steps) ===
 dataset_names = {'measureItsLive-GEMB','measureItsLive-GSFC','DTU2016','DTU2025', ...
@@ -57,7 +69,17 @@ if any(steps==1)
     for n = 1:length(data_gnss)
         if annual_output
             % Find unique years in GNSS data
-            common_time{n} = unique(floor(time_gnss{n}));
+            if use_berg_et_al
+                for n = 1:length(stn_id)
+                    name_gnss = string(stn_id{n});
+                    match_idx = find(elas_data.station == name_gnss, 1);
+                    if ~isempty(match_idx)
+                        common_time{n} = (floor(elas_data.tstart(match_idx)): floor(elas_data.tend(match_idx)))';
+                    end
+                end
+            else
+                common_time{n} = unique(floor(time_gnss{n}));
+            end
         else
             % Keep the original gnss data time resolution
             common_time{n} = time_gnss{n};
@@ -866,21 +888,26 @@ if any(steps==8)
     end
 
     % Compute misfits between all model results and GNSS data
-    mean_err_gnss   = cell(numel(datasets), 1);
     vlm_VE_GF_gnss  = cell(numel(datasets), 1);
     misfit          = cell(numel(datasets), 1);
     rate_model      = cell(numel(datasets), 1);
-    rate_gnss_fit   = cell(numel(datasets), 1);
     y_fit_model     = cell(numel(datasets), 1);
     y_fit_gnss      = cell(numel(datasets), 1);
 
     for k = 1:numel(datasets)
         disp('------------------------------------')
         disp(sprintf('Comparing dataset %s to GNSS data...\n', datasets{k}.name));
-        [~, mean_err_gnss{k}, vlm_VE_GF_gnss{k}, misfit{k}, ...
-            rate_model{k}, rate_gnss_fit{k}, y_fit_model{k}, y_fit_gnss{k}] = ...
-            compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
-                                time_gnss, stn_id, mds_solved{k}, vlm_total{k});
+        if use_berg_et_al
+            [~, mean_err_gnss, vlm_VE_GF_gnss{k}, misfit{k}, ...
+                rate_model{k}, rate_gnss_fit, y_fit_model{k}, ~] = ...
+                compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
+                                    common_time, stn_id, mds_solved{k}, vlm_total{k});
+        else
+            [~, mean_err_gnss, vlm_VE_GF_gnss{k}, misfit{k}, ...
+                rate_model{k}, rate_gnss_fit, y_fit_model{k}, y_fit_gnss{k}] = ...
+                compare_model_to_gnss(lat_gnss, lon_gnss, data_gnss, err_gnss, ...
+                                    common_time, stn_id, mds_solved{k}, vlm_total{k});
+        end
     end
 end
 
@@ -901,42 +928,58 @@ if any(steps==9)
     num_stations = length(data_gnss);
     num_datasets = numel(datasets);
 
-    % Create figure for each GNSS station
-    for n = 1:num_stations
-        figure('Position', [100, 100, 1200, 800]);
+    % Create figure for each GNSS station (this can be done only using the gnss data processed in Step 1, not using Berg et al.s datasets)
+    if ~use_berg_et_al
+        for n = 1:num_stations
+            figure('Position', [100, 100, 1200, 800]);
 
-        % Plot GNSS data points
-        plot(time_gnss{n}, data_gnss{n}, 'ko', 'MarkerSize', 8, 'DisplayName', 'GNSS Data', 'LineWidth', 2);
-        hold on;
+            % Plot GNSS data points
+            plot(time_gnss{n}, data_gnss{n}, 'ko', 'MarkerSize', 8, 'DisplayName', 'GNSS Data', 'LineWidth', 2);
+            hold on;
 
-        % Plot GNSS linear fit (y_fit_gnss should be the same, so just pick one)
-        plot(time_gnss{n}, y_fit_gnss{1}{n}, 'k-', 'LineWidth', 3, 'DisplayName', sprintf('GNSS fit (%.2f mm/yr)', rate_gnss_fit{k}(n)));
+            % Plot GNSS linear fit (y_fit_gnss should be the same, so just pick one)
+            plot(time_gnss{n}, y_fit_gnss{1}{n}, 'k-', 'LineWidth', 3, 'DisplayName', sprintf('GNSS fit (%.2f mm/yr)', rate_gnss_fit(n)));
 
-        % Plot all GIA model fits
-        for k = 1:num_datasets
-            plot(time_gnss{n}, y_fit_model{k}{n}, 'Color', colors{k}, 'LineWidth', 2, ...
-                 'DisplayName', sprintf('%s (%.2f mm/yr)', ...
-                 datasets{k}.name, rate_model{k}(n)));
-        end
+            % Plot all GIA model fits
+            for k = 1:num_datasets
+                plot(time_gnss{n}, y_fit_model{k}{n}, 'Color', colors{k}, 'LineWidth', 2, ...
+                    'DisplayName', sprintf('%s (%.2f mm/yr)', ...
+                    datasets{k}.name, rate_model{k}(n)));
+            end
 
-        xlabel('Time (year)', 'FontSize', 18);
-        ylabel('VLM (mm)', 'FontSize', 18);
-        title(sprintf('GIA vs GNSS VLM Rate Comparison at Station %s (%s)', stn_id{n}, label), 'FontSize', 20);
-        legend('show', 'Location', 'best', 'FontSize', 16);
-        grid on;
-        set(gca, 'FontSize', 18);
+            xlabel('Time (year)', 'FontSize', 18);
+            ylabel('VLM (mm)', 'FontSize', 18);
+            title(sprintf('GIA vs GNSS VLM Rate Comparison at Station %s (%s)', stn_id{n}, label), 'FontSize', 20);
+            legend('show', 'Location', 'best', 'FontSize', 16);
+            grid on;
+            set(gca, 'FontSize', 18);
 
-        % Save figure with station name in the filename
-        if save_fig
-            saveas(gcf, fullfile(fpath_results_figures, sprintf('gia_vs_gnss_VLM_rate_at_station_%s_%s_%s.png', stn_id{n}, rheology_choice, label)));
+            % Save figure with station name in the filename
+            if save_fig
+                saveas(gcf, fullfile(fpath_results_figures, sprintf('gia_vs_gnss_VLM_rate_at_station_%s_%s_%s.png', stn_id{n}, rheology_choice, label)));
+            end
         end
     end
 
     % Create summary figure showing rate comparison across all stations
     % Prepare data for plotting
-    rates_matrix = zeros(num_stations, num_datasets);
-    gnss_rates   = rate_gnss_fit{1}; %pick one
+    if use_berg_et_al
+        gnss_rates_berg = NaN(num_stations,1);
+        gnss_rates_err_berg = NaN(num_stations,1);
+        for i = 1:num_stations
+            name_gnss = string(stn_id{i});
+            match_idx = find(elas_data.station == name_gnss, 1);
+            if ~isempty(match_idx)
+                gnss_rates_berg(i) = elas_data.Uobserved(match_idx);
+                gnss_rates_err_berg(i) = elas_data.Uobserved_sigma(match_idx);
+            end
+        end
+        rate_gnss = gnss_rates_berg;
+    else
+        rate_gnss = rate_gnss_fit;
+    end
 
+    rates_matrix = zeros(num_stations, num_datasets);
     for k = 1:num_datasets
         rates_matrix(:, k) = rate_model{k};
     end
@@ -947,7 +990,9 @@ if any(steps==9)
 
     figure('Color','w','Position',[100 100 1700 600]);
     % Plot GNSS rates as reference dots
-    plot(x_pos, gnss_rates, 'ko', 'MarkerSize', 5.5, 'MarkerFaceColor', 'black', 'DisplayName', 'GNSS Rate');
+    errorbar(x_pos, rate_gnss, gnss_rates_err_berg, ...
+         'o', 'Color','k','MarkerFaceColor','none','MarkerSize',5.5, 'LineWidth',1.2,'DisplayName', 'Observed GNSS rate (Berg et al., 2024)');
+    %plot(x_pos, rate_gnss, 'ko', 'MarkerSize', 5.5, 'MarkerFaceColor', 'black', 'DisplayName', 'Observed GNSS rate');
     hold on;
 
     % Plot GIA rates as bars
@@ -958,7 +1003,7 @@ if any(steps==9)
     end
 
     % --- Labels & layout ---
-    xlabel('GNSS Station', 'FontSize', 14);
+    xlabel('Station ID', 'FontSize', 14);
     ylabel('VLM Rate (mm/yr)', 'FontSize', 14);
     title('GIA vs GNSS Rate Comparison Across All Stations', 'FontSize', 16);
     legend('show', 'Location', 'northwest', 'FontSize', 12);
@@ -989,22 +1034,36 @@ end
 if any(steps == 10)
     fprintf('\n=== Plotting GIA–GNSS Residual Comparison ===\n');
 
-    save_fig = true;
+    save_fig = false;
 
     num_datasets = numel(datasets);
     num_stations = numel(stn_id);
 
     %% --- Compute residuals (GNSS − Model) ---
-    rate_gnss = rate_gnss_fit{1};   % identical across datasets
+    if use_berg_et_al
+        gnss_rates_berg = NaN(1,num_stations);
+        gnss_rates_err_berg = NaN(1,num_stations);
+        for i = 1:num_stations
+            name_gnss = string(stn_id{i});
+            match_idx = find(elas_data.station == name_gnss, 1);
+            if ~isempty(match_idx)
+                gnss_rates_berg(i) = elas_data.Uobserved(match_idx);
+                gnss_rates_err_berg(i) = elas_data.Uobserved_sigma(match_idx);
+            end
+        end
+        rate_gnss = gnss_rates_berg;
+    else
+        rate_gnss = rate_gnss_fit;
+    end
+
     y = zeros(num_stations, num_datasets);
     for k = 1:num_datasets
         y(:, k) = rate_gnss - rate_model{k};
     end
 
-
     %% --- Read & apply the paleo and contemporary loading corrections ---
     % Data from Parviz and Glenn for the paleo signals
-    gia_data = read_VLM_sites(fpath_gia, true);
+    gia_data = read_VLM_sites(fpath_gia, false);
     gia1D_total_mean = gia_data.VLM1D_mean; % this includes total signal (DG+LIA+PG)
     gia3D_total_mean = gia_data.VLM3D_mean;
     gia_DG3D_mean = gia_data.DG; % mean of 3D Deglacial-GIA
@@ -1043,20 +1102,23 @@ if any(steps == 10)
     nMatched = sum(~isnan(applied_gia_1D_total));
     fprintf('\n✅ GIA corrections applied for %d of %d stations.\n', nMatched, num_stations);
 
-    % Data from Berg et al. (2023) for the contemporary Perpheral Glacier Loading
-    elas_data = read_GNET_Elastic_VLM(fullfile(fpath_gnss_new,'Table_S1_GNET_VLM_Berg_et_al.xlsx'), false);
-
+    % Use the data from Berg et al. (2023) for the contemporary Perpheral Glacier Loading
     % Apply the elastic corrections to the residuals corrected for the total 3D GIA signal
     y_corr_total = NaN(size(y));
     applied_elas_Can = NaN(num_stations,1);
+    comparison_elas = NaN(size(y));
     for i = 1:num_stations
         name_gnss = string(stn_id{i});
         match_idx = find(elas_data.station == name_gnss, 1);
         if ~isempty(match_idx)
+            fprintf('Applying corrections to station %s \n', name_gnss)
             elas_Can = elas_data.Uelastic_CanPG(match_idx); % only consider the Canadian component because the Greenland component is already included
             elas_Can_sigma = elas_data.Uelastic_CanPG_sigma(match_idx);
             applied_elas_Can(i) = elas_Can;
             y_corr_total(i,:) = y(i,:) - applied_gia_3D_total(i) - applied_elas_Can(i);
+            comparison_elas(i,:) = rates_matrix(i,:) - elas_data.Uelastic_GrIS(match_idx);
+            gnss_rates_berg(i) = elas_data.Uobserved(match_idx);
+            gnss_rates_err_berg(i) = elas_data.Uobserved_sigma(match_idx);
         else
             warning('⚠️ No Elastic GrCan match found for station %s', name_gnss);
         end
@@ -1184,14 +1246,18 @@ if any(steps == 10)
     end
 end
 
-if any(steps=='fig1')
-% Generate a two panel figure of spatial map of mean of total masked ice thickness change (panel 1)
-% and 1-sigma on the ISSM Greenland mesh (panel 2)
-% Note to myself: Covered period varies depending on the availability of ice altimetry product. But for the elastic calculation, it makes sense to show the common period of the GNSS duration (which also varies by stations)
+if any(steps==11)
+    % Generate a two panel figure of spatial map of mean of total masked ice thickness change (panel 1)
+    % and 1-sigma on the ISSM Greenland mesh (panel 2)
+    % Note to myself: Covered period varies depending on the availability of ice altimetry product. But for the elastic calculation, it makes sense to show the common period of the GNSS duration (which also varies by stations)
 
     % spatial map of mean of total masked thickness change on the ISSM mesh
     load_md = false;
     label = 'with_mask';
+    plot_stn_id = false;
+    plot_total_thickness_change_for_each_ice_data = false;
+
+
     if load_md
         mds = cell(numel(datasets), 1);
         for k = 1:numel(datasets)
@@ -1203,7 +1269,7 @@ if any(steps=='fig1')
     end
 
     dice_total = cell(numel(datasets), 1);
-    mean_dice = cell(numel(datasets), 1);
+    mean_dice_rate = cell(numel(datasets), 1);
     h = cell(numel(datasets), 1);
 
     % First, choose a common time window for comparison
@@ -1223,144 +1289,350 @@ if any(steps=='fig1')
         h{k} = md.masstransport.spcthickness(1:end-1,idx_start:idx_end);
         dice = diff(h{k}, 1, 2); % take differences along the time dimension
         dice_total{k} = sum(dice, 2);
-        mean_dice{k} = dice_total{k} / common_years_total;
-        %plotmodel(md, 'data', dice_total{k}, 'caxis', [-1 1], 'colormap', flip(custom_cmap))
-        plotmodel(md, 'data', mean_dice{k},'figure', k,  'caxis', [-1 1], 'colormap', flip(custom_cmap), 'title', sprintf('%s: %d-%d', ds.name, common_year_start, common_year_end))
-        set(gca,'clipping','off')
+        mean_dice_rate{k} = dice_total{k} / common_years_total; % annual trend for each product
     end
 
     % get mean and sigma across the whole data products
-    mean_dice_mat = cat(2, mean_dice{:});  % concatenate along 2nd dimension
+    mean_dice_rate_mat = cat(2, mean_dice_rate{:});  % concatenate along 2nd dimension
 
     % Compute mean and standard deviation across products (dimension 2)
-    mean_dice_all = mean(mean_dice_mat, 2, 'omitnan');
-    std_dice_all  = std(mean_dice_mat, 0, 2, 'omitnan');
+    mean_dice_rate_all = mean(mean_dice_rate_mat, 2, 'omitnan');
+    std_dice_rate_all  = std(mean_dice_rate_mat, 0, 2, 'omitnan');
 
     % Statistics across the whole ice sheet
-    fprintf('Mean of mean_dice_all: %.3f m/yr\n', mean(mean_dice_all, 'omitnan'))
-    fprintf('Std of mean_dice_all: %.3f m/yr\n', std(mean_dice_all, 'omitnan'))
-    fprintf('Median std_dice_all: %.3f m/yr\n', median(std_dice_all, 'omitnan'))
+    fprintf('Mean of mean_dice_rate_all: %.3f m/yr\n', mean(mean_dice_rate_all, 'omitnan'))
+    fprintf('Std of mean_dice_rate_all: %.3f m/yr\n', std(mean_dice_rate_all, 'omitnan'))
+    fprintf('Median std_dice_rate_all: %.3f m/yr\n', median(std_dice_rate_all, 'omitnan'))
 
-    xg = r_earth * cosd(lat_gnss) .* cosd(lon_gnss);
-    yg = r_earth * cosd(lat_gnss) .* sind(lon_gnss);
-    zg = r_earth * sind(lat_gnss);
-
-    % panel 1
-    plotmodel(md, 'data', mean_dice_all, 'figure', 10, 'caxis', [-1 1], 'colormap', flip(custom_cmap))
+    % Panel 1
+    % Project to polar stereographic north
+    [xg_psn, yg_psn] = ll2psn(lat_gnss, lon_gnss);
+    % Extract greenland mesh only
+    [meshG, indexG] = extractGreenlandMeshfromGlobal(md);
+    data = mean_dice_rate_all(indexG);
+    figure('Color','w')
+    trisurf(meshG.elements, ...
+            meshG.x, meshG.y, ...
+            zeros(meshG.numberofvertices,1), ...
+            data, ...
+            'EdgeColor','none', ...
+            'FaceColor','interp');
+    view(2); axis equal tight;
     hold on
-    title('Inter-product mean thickness change (m/yr)')
-    set(gca,'clipping','off')
+    caxis([-1 1]);
+    greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
+    colormap(flip(custom_cmap))
+    grid off
+    axis off
+    plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor','w', 'MarkerSize',6)
+    title({'Inter-product mean annual ice thickness change', 'between 2003-2020 (m/yr)'}, 'FontSize',16)
+    colorbar()
+    %graticulepsn(meshG.lat,meshG.long);
+
+    % Panel 2
+    data = std_dice_rate_all(indexG);
+    figure('Color','w')
+    trisurf(meshG.elements, ...
+            meshG.x, meshG.y, ...
+            zeros(meshG.numberofvertices,1), ...
+            data, ...
+            'EdgeColor','none', ...
+            'FaceColor','interp');
+    view(2); axis equal tight;
+    hold on
+    caxis([0 0.5]);
+    greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
+    colormap(flip(colormap('hot')))
+    grid off
+    axis off
+    plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor','w', 'MarkerSize',6)
+    title('Inter-product standard deviation (m/yr)', 'FontSize',16)
+    colorbar()
+
+
+    % ===== Below plotting is using plotmodel and on a 3D global surface ========
+    % panel 1
+    %plotmodel(md, 'data', mean_dice_rate_all, 'figure', 10, 'caxis', [-1 1], 'colormap', flip(custom_cmap))
+    %hold on
+    %title('Inter-product mean thickness change (m/yr)')
+    %set(gca,'clipping','off')
 
     % panel 2
-    plotmodel(md, 'data', std_dice_all, 'figure', 11, 'caxis', [0 0.5], 'colormap',flip(colormap('hot')),'title','1-sigma across datasets')
-    hold on
-    plot3(xg, yg, zg, 'b.', 'MarkerSize', 14);
-    close(1);
-    for i = 1:length(stn_id)
-        text(xg(i), yg(i), zg(i), stn_id{i}, ...
-            'FontSize',8, 'Color','b', ...
-            'VerticalAlignment','bottom');
-    end
-    axis equal off
+    %xg = r_earth * cosd(lat_gnss) .* cosd(lon_gnss);
+    %yg = r_earth * cosd(lat_gnss) .* sind(lon_gnss);
+    %zg = r_earth * sind(lat_gnss);
+
+    %plotmodel(md, 'data', std_dice_rate_all, 'figure', 11, 'caxis', [0 0.5], 'colormap',flip(colormap('hot')),'title','1-sigma across datasets')
+    %hold on
+    %plot3(xg, yg, zg, 'b.', 'MarkerSize', 14);
+    %close(1);
+    %for i = 1:length(stn_id)
+    %    text(xg(i), yg(i), zg(i), stn_id{i}, ...
+    %        'FontSize',8, 'Color','b', ...
+    %        'VerticalAlignment','bottom');
+    %end
+    %axis equal off
     %light; lighting gouraud; material dull % add soft 3-D lighting
-    view(35,25)  %  view(50,70)
+    %view(53,73)
     %title('Inter-product standard deviation (m/yr)')
-    set(gca,'clipping','off')
-    set(findobj(gca,'Type','text'), 'RotationMode','auto');
+    %set(gca,'clipping','off')
+    %set(findobj(gca,'Type','text'), 'RotationMode','auto');
+    % ===========================================================================
 
-    % Calculate and plot differences bewteen mean and each dataset in total thickness change (Supp. Fig. 1)
-    for i = 1:length(datasets)
-        [maxval, idxmax] = max(mean_dice_all - dice_total{i});
-        [minval, idxmin] = min(mean_dice_all - dice_total{i});
-        % Extract coordinates of the max vertex (from your earlier result)
-        x_max = md.mesh.x(idxmax);
-        y_max = md.mesh.y(idxmax);
-        z_max = md.mesh.z(idxmax);
-        x_min = md.mesh.x(idxmin);
-        y_min = md.mesh.y(idxmin);
-        z_min = md.mesh.z(idxmin);
+    if plot_total_thickness_change_for_each_ice_data
+        % Calculate and plot the maximum and minimum total and mean ice thickness changes for each altimetry data
+        % Plot the base data map
+        max_total_val = zeros(1,length(datasets));
+        idx_total_max = zeros(1,length(datasets));
+        min_total_val = zeros(1,length(datasets));
+        idx_total_min = zeros(1,length(datasets));
+        max_mean_val = zeros(1,length(datasets));
+        idx_mean_max = zeros(1,length(datasets));
+        min_mean_val = zeros(1,length(datasets));
+        idx_mean_min = zeros(1,length(datasets));
 
-        plotmodel(md, 'data', mean_dice_all - dice_total{i}, 'figure', i+20, 'caxis', [-25 25], 'colormap', flip(custom_cmap))
-        hold on
-        plot3(x_max, y_max, z_max, 'm*', 'MarkerSize', 10, 'LineWidth', 2)
-        %plot3(x_min, y_min, z_min, 'k*', 'MarkerSize', 10, 'LineWidth', 2)
-        title(sprintf(['Difference from inter-product mean thickness change\nfor %s (m/yr)'], datasets{i}.name))
-        for i = 1:length(stn_id)
-            text(xg(i), yg(i), zg(i), stn_id{i}, ...
-                'FontSize',12, 'Color','k', ...
-                'VerticalAlignment','bottom');
+        for k = 1:length(datasets)
+            ds = datasets{k};
+            md = mds{k};
+
+            vals_total = dice_total{k}(indexG);
+            vals_mean = mean_dice_rate{k}(indexG);
+
+            % Find the index and value of the maximum
+            [max_total_val(k), idx_total_max(k)] = max(vals_total);
+            [min_total_val(k), idx_total_min(k)] = min(vals_total);
+            [max_mean_val(k), idx_mean_max(k)] = max(vals_mean);
+            [min_mean_val(k), idx_mean_min(k)] = min(vals_mean);
+
+            % Extract coordinates of the max and min vertices
+            x_max = meshG.x(idx_total_max(k));
+            y_max = meshG.y(idx_total_max(k));
+            x_min = meshG.x(idx_total_min(k));
+            y_min = meshG.y(idx_total_min(k));
+
+            figure('Color','w')
+            trisurf(meshG.elements, ...
+                    meshG.x, meshG.y, ...
+                    zeros(meshG.numberofvertices,1), ...
+                    vals_total, ...
+                    'EdgeColor','none', ...
+                    'FaceColor','interp');
+            view(2); axis equal tight;
+            hold on
+            caxis([-100 100]);
+            greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
+            colormap(flip(custom_cmap))
+            grid off
+            axis off
+            plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor','w', 'MarkerSize',6)
+            plot(x_max, y_max, 'k+', 'MarkerSize', 6, 'LineWidth', 2)
+            plot(x_min, y_min, 'k*', 'MarkerSize', 6, 'LineWidth', 2)
+            title(sprintf(['Total thickness change between %d and %d \nfor %s (m)'], common_year_start, common_year_end, ds.name))
+            colorbar()
+
+            % Optionally add a label
+            %text(x_max, y_max, sprintf('Max total: %.2f m \nMax mean: %.2f m/yr', max_total_val(k), max_mean_val(k)), ...
+            %     'Color', 'k', 'FontSize', 7, 'FontWeight', 'bold', ...
+            %     'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center');
+            % Optionally add a label
+            %text(x_min, y_min, sprintf('Min total: %.2f m \nMin mean: %.2f m/yr, ', min_total_val(k), min_mean_va(k))), ...
+            %     'Color', 'k', 'FontSize', 7, 'FontWeight', 'bold', ...
+            %     'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center');
+            sprintf('For dataset: %s', ds.name)
+            sprintf('Max total change: %.2f m \nMax mean change: %.2f m/yr at index %d' , max_total_val(k), max_mean_val(k), idx_mean_max(k))
+            sprintf('Min total change: %.2f m \nMin mean change: %.2f m/yr at index %d' , min_total_val(k), min_mean_val(k), idx_mean_min(k))
+
+            if plot_stn_id
+                for i = 1:length(stn_id)
+                    text(xg_psn(i), yg_psn(i), stn_id{i}, ...
+                        'FontSize',10, 'FontWeight','bold', ...
+                        'Color','k', ...
+                        'HorizontalAlignment','center', ...
+                        'VerticalAlignment','bottom');
+                end
+            end
         end
-        set(gca,'clipping','off')
+    end
+end
+
+if any(steps==12)
+
+    % Generates panels for the corresponding supplementary figure (Supp. Fig. 1)
+    % Requires running Step(fig1) in advance.
+
+    save_fig = false;
+    plot_stn_id = true;
+    diff_product = zeros(meshG.numberofvertices, numel(datasets));
+    % Calculate and plot differences bewteen mean and each dataset in total thickness change rate(Supp. Fig. 1)
+    for i = 1:length(datasets)
+        [maxval, idxmax] = max(mean_dice_rate{i}(indexG) - mean_dice_rate_all(indexG));
+        [minval, idxmin] = min(mean_dice_rate{i}(indexG) - mean_dice_rate_all(indexG));
+
+        % Extract coordinates of the max vertex (from your earlier result)
+        x_max = meshG.x(idxmax);
+        y_max = meshG.y(idxmax);
+        x_min = meshG.x(idxmin);
+        y_min = meshG.y(idxmin);
+
+        data = mean_dice_rate{i}(indexG) - mean_dice_rate_all(indexG);
+        diff_product(:,i) = data;
+
+        figure('Color','w')
+        trisurf(meshG.elements, ...
+                meshG.x, meshG.y, ...
+                zeros(meshG.numberofvertices,1), ...
+                data, ...
+                'EdgeColor','none', ...
+                'FaceColor','interp');
+        view(2); axis equal tight;
+        hold on
+        caxis([-1 1]);
+        greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
+        colormap(flip(custom_cmap))
+        grid off
+        axis off
+        plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor', 'w', 'MarkerSize',6)
+        plot(x_max, y_max, 'k+', 'MarkerSize', 6, 'LineWidth', 2)
+        plot(x_min, y_min, 'k*', 'MarkerSize', 6, 'LineWidth', 2)
+        title(sprintf(['Deviation from inter-product mean thickness change\nfor %s (m/yr)'], datasets{i}.name), 'FontSize',16)
+        colorbar()
+
+        if plot_stn_id
+            for i = 1:length(stn_id)
+                text(xg_psn(i), yg_psn(i), stn_id{i}, ...
+                    'FontSize',10, 'FontWeight','bold', ...
+                    'Color','k', ...
+                    'HorizontalAlignment','center', ...
+                    'VerticalAlignment','bottom');
+            end
+        end
+
         % --- Add text showing min and max values in panel ---
         xlims = xlim;
         ylims = ylim;
         text(xlims(1) + 0.02*range(xlims), ylims(2) - 0.05*range(ylims), ...
-            sprintf('max = %.3f m/yr', maxval), 'Color', 'k', 'FontSize', 10, 'FontWeight', 'bold')
+            sprintf('+ max = %.2f m/yr', maxval), 'Color', 'k', 'FontSize', 12, 'FontWeight', 'bold')
 
         text(xlims(1) + 0.02*range(xlims), ylims(2) - 0.10*range(ylims), ...
-            sprintf('min = %.3f m/yr', minval), 'Color', 'k', 'FontSize', 10, 'FontWeight', 'bold')
-    end
+            sprintf('* min = %.2f m/yr', minval), 'Color', 'k', 'FontSize', 12, 'FontWeight', 'bold')
 
-
-    % Calculate and plot the maximum and minimum total and mean ice thickness changes for each altimetry data
-    % Plot the base data map
-    max_total_val = zeros(1,length(datasets));
-    idx_total_max = zeros(1,length(datasets));
-    min_total_val = zeros(1,length(datasets));
-    idx_total_min = zeros(1,length(datasets));
-    max_mean_val = zeros(1,length(datasets));
-    idx_mean_max = zeros(1,length(datasets));
-    min_mean_val = zeros(1,length(datasets));
-    idx_mean_min = zeros(1,length(datasets));
-
-    for k = 1:length(datasets)
-        ds = datasets{k};
-        md = mds{k};
-
-        vals_total = dice_total{k};
-        vals_mean = mean_dice{k};
-
-        % Find the index and value of the maximum
-        [max_total_val(k), idx_total_max(k)] = max(vals_total);
-        [min_total_val(k), idx_total_min(k)] = min(vals_total);
-        [max_mean_val(k), idx_mean_max(k)] = max(vals_mean);
-        [min_mean_val(k), idx_mean_min(k)] = min(vals_mean);
-
-        % Extract coordinates of the max vertex
-        x_max = mds{k}.mesh.x(idx_total_max(k));
-        y_max = mds{k}.mesh.y(idx_total_max(k));
-        z_max = mds{k}.mesh.z(idx_total_max(k));
-
-        x_min = mds{k}.mesh.x(idx_total_min(k));
-        y_min = mds{k}.mesh.y(idx_total_min(k));
-        z_min = mds{k}.mesh.z(idx_total_min(k));
-
-        plotmodel(md, 'data', dice_total{k}, 'figure', k+30, 'caxis', [-100 100], 'colormap', flip(custom_cmap))
-        hold on
-        title(sprintf(['Total thickness change between %d and %d \nfor %s (m)'], common_year_start, common_year_end, ds.name))
-        % Overlay the point — red star, large and visible
-        plot3(x_max, y_max, z_max, 'r*', 'MarkerSize', 10, 'LineWidth', 2)
-        plot3(x_min, y_min, z_min, 'k*', 'MarkerSize', 10, 'LineWidth', 2)
-
-        % Optionally add a label
-        %text(x_max, y_max, z_max, sprintf('Max total: %.2f m \nMax mean: %.2f m/yr', max_total_val(k), max_mean_val(k)), ...
-        %     'Color', 'k', 'FontSize', 7, 'FontWeight', 'bold', ...
-        %     'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center');
-        % Optionally add a label
-        %text(x_min, y_min, z_min, sprintf('Min total: %.2f m \nMin mean: %.2f m/yr, ', min_total_val(k), min_mean_va(k))), ...
-        %     'Color', 'k', 'FontSize', 7, 'FontWeight', 'bold', ...
-        %     'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center');
-        sprintf('For dataset: %s', ds.name)
-        sprintf('Max total change: %.2f m \nMax mean change: %.2f m/yr at index %d' , max_total_val(k), max_mean_val(k), idx_mean_max(k))
-        sprintf('Min total change: %.2f m \nMin mean change: %.2f m/yr at index %d' , min_total_val(k), min_mean_val(k), idx_mean_min(k))
-
-        for i = 1:length(stn_id)
-            plot3(xg(i), yg(i), zg(i), 'ko', 'MarkerSize', 6, 'MarkerFaceColor', 'r');  % red filled circle
-
-            text(xg(i), yg(i), zg(i), stn_id{i}, ...
-                'FontSize',12, 'Color','k', ...
-                'VerticalAlignment','bottom');
+        if save_fig
+            saveas(gcf, fullfile(fpath_results_figures, sprintf('Supp_Fig1_panel%d.png', i)));
         end
-        set(gca,'clipping','off')
     end
+
+    % Debug: check if diff_product sums to zero
+    diff_sum = sum(diff_product,2); %sum across the product
+    sprintf('min_diff_sum: %0.3e and max_diff_sum %0.3e',min(diff_sum), max(diff_sum));
 end
+
+if any(steps==13)
+    % Generate a figure equivalent to Fig 1 but for VLM
+    % Note: This step assumes all the required variables to calculate the mean and std fields have been loaded.
+    %       While Fig 1 covers time period (2003-2020) where all altimetry products overlap,
+    %       VLM rates shown in this figure are based on different time period for each GNSS station
+
+    plot_stn_id = false;
+    mean_vlm_rates = mean(rates_matrix,2);       % → T×1 mean across datasets
+    std_vlm_rates  = std(rates_matrix,0,2);      % → T×1 sigma across datasets
+
+    T = table(stn_id(:), mean_vlm_rates, std_vlm_rates, ...
+    'VariableNames', {'Station','MeanVLM','StdVLM'});
+
+    % panel 1
+    disp('Creating Figure 2a')
+    figure('Color','w');
+    fig = gcf;
+    fig.Position(4) = fig.Position(4) + 200;   % +200 pixels vertically
+    itslive_imagesc(5)
+    hold on
+    greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
+    set(gca,'colorscale','log')
+    clim([1 10e3])
+    view(2); axis equal tight;
+    greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
+    colormap(flip(custom_cmap))
+    grid off
+    ax1 = gca;
+    ax1.Visible = 'off';
+
+    % GNSS overlay
+    ax2 = axes('Position', ax1.Position, 'Color','none');
+    hold(ax2,'on');
+    scatter_handle = scatter(ax2, xg_psn, yg_psn, 100, mean_vlm_rates, ...
+                         'filled','MarkerEdgeColor','k','LineWidth',0.5);
+
+    colormap(ax2, flip(pink));
+    caxis(ax2, [0 15]);
+
+    % Match geometry
+    ax2.XLim = ax1.XLim;
+    ax2.YLim = ax1.YLim;
+    ax2.DataAspectRatio = ax1.DataAspectRatio;
+    ax2.PlotBoxAspectRatio = ax1.PlotBoxAspectRatio;
+    ax2.XDir = ax1.XDir;
+    ax2.YDir = ax1.YDir;
+    axis(ax2,'equal','tight');
+    ax2.Visible = 'off';
+
+    linkaxes([ax1 ax2],'xy');
+
+    % **Bring GNSS to front**
+    uistack(scatter_handle,'top');
+
+    %% --- lock axis positions ---
+    ax1.PositionConstraint = 'innerposition';
+    ax2.PositionConstraint = 'innerposition';
+
+    %% --- Save original axes position BEFORE adding colorbars
+    origPos = ax1.Position;
+
+    %% Add both colorbars
+    cb1 = colorbar(ax1,'Location','eastoutside');
+    cb1.Label.String = 'Velocity (m/yr, log scale)';
+
+    cb2 = colorbar(ax2,'Location','southoutside');
+    cb2.Label.String = 'Mean VLM (mm/yr)';
+
+    %% --- Restore axes positions (critical!)
+    ax1.Position = origPos;
+    ax2.Position = origPos;
+
+    %% --- Now place colorbars manually
+    cb1.Position = [0.8 0.20 0.03 0.60];
+    cb2.Position = [0.25 0.077 0.50 0.025];
+
+    % Super-group title
+    sgtitle('Mean ice velocity in Greenland and mean VLM at GNSS sites', 'FontSize',16)
+
+    if plot_stn_id
+        text(xg_psn, yg_psn + 10e3, stn_id, ...
+        'HorizontalAlignment','center', ...
+        'VerticalAlignment','bottom', ...
+        'FontSize',9, 'Color','k');
+    end
+
+    % panel 2
+    disp('Creating Figure 2b')
+    figure('Color','w','Position',[100 100 1500 600]);
+    x = 1:num_stations;
+    errorbar(x, mean_vlm_rates, std_vlm_rates, ...
+         'o', 'Color','k','MarkerFaceColor','none','MarkerSize',6, 'LineWidth',1.2);
+    hold on
+    grid on;
+    set(gca,'GridAlpha',0.25);   % lighter grid
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',14);xtickangle(45);
+    ylabel('Mean VLM and 1-sigma (mm/yr)');
+    xlabel('Station ID')
+    title('Modeled Mean VLM and GNSS Rates at the GNSS Stations in Greenland')
+    xlim([0.5 53.5]);
+    %ylim([0 max(mean_vlm_rates + std_vlm_rates)*1.10]);
+
+    % Add GNSS data points
+    % Plot GNSS rates as reference dots
+    errorbar(x, gnss_rates_berg, gnss_rates_err_berg, ...
+         'o', 'Color','b','MarkerFaceColor','none','MarkerSize',5.5, 'LineWidth',1.2);
+    %plot(1:num_stations, gnss_rates, 'ko', 'MarkerSize', 5.5, 'MarkerFaceColor', 'black', 'DisplayName', 'GNSS Rate');
+    legend({'Model mean +/- 1-sigma', 'Observed GNSS rate +/- 1-sigma (Berg et al., 2024)'}, 'Location','northwest');
+end
+

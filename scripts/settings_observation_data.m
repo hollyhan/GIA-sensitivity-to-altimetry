@@ -10,13 +10,14 @@ rhoo = 1000.0; % ocean density in kg/m3
 r_earth = 6371000.0; % radius of the earth typically used in ISSM
 
 % path to love numbers
-fpath_love_numbers = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/lovenumbers/lovenumbers_VE_compressible_Maxwell_LT120_umv0p03_lmv2.mat';
+fpath_love_numbers = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/lovenumbers/lovenumbers_VE_compressible_Maxwell_LT70_umv1_lmv1.mat';
 
 % path to mesh model
 fpath_mesh_model_regional = '/Users/kyhan/Desktop/LIA-Project/Pre-process/issm_model/source_file_josh/Param_UW.mat';
 fpath_mesh_model_global = '/Users/kyhan/Desktop/LIA-Project/Pre-process/IceHistory/md_global_ready_for_solve.mat';
 fpath_mesh_model_regional_refined = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/mesh';
 fpath_results_general = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results';
+fpath_results_figures = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/figures';
 
 %--------------------- Altimetry Data Setting --------------------%
 % Name of the ice elevation data to use. Possible options are, (1)
@@ -44,7 +45,10 @@ fpath_fac_gsfc = '/Users/kyhan/Desktop/Projects/Greenland-LIA/data_obs/altimetry
 % fname_coord_gnss: file name of the site coordinates
 % stn_id: station ID for sites to use for data-model comparison
 % n_degree: n-th degree polynomial for detrending. 0 = remove mean, 1 = linear detrending, 2 = quadratic detrending
-%
+% use_berg_et_al: Logical, if true, GNSS rate will be adapted from Berg et al., 2024, if false, GNSS rate will be processed based on the raw data
+
+use_berg_et_al = true;
+fpath_gnss_new = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/gnss/DTU/';
 fpath_gnss = '/Users/kyhan/Desktop/Projects/Greenland-LIA/data_obs/gnss/GNET_NEU_v2021_11_30/';
 fname_coord_gnss = 'coordinates_v2021_11_30.txt';
 %stn_1 = {'KAGZ','SCBY','KMOR','HRDG','JWLF','KMJP','JGBL','NORD','LEFN'};

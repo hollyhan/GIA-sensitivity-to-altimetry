@@ -21,11 +21,28 @@ function [WRMS, mean_err_gnss, interped_md_data, misfit, rate, rate_gnss_fit, y_
 
     % Check if we're using whole domain or GNSS sites only
     run('settings_gia_parameterization.m')
+    run('settings_observation_data.m');
+
     plot_fig = false;
 
+    if use_berg_et_al
+        % update the gnss rates for the 53 stations
+        elas_data = read_GNET_Elastic_VLM(fullfile(fpath_gnss_new,'Table_S1_GNET_VLM_Berg_et_al.xlsx'), false);
+        %stn_id_berg = cellstr(elas_data.station)';
+        for n = 1:length(stn_id)
+            name_gnss = string(stn_id{n});
+            match_idx = find(elas_data.station == name_gnss, 1);
+            if ~isempty(match_idx)
+                % Compute normalized residuals for station n
+                rate_gnss_fit(n) = elas_data.Uobserved(match_idx);
+                mean_err_gnss(n) = elas_data.Uobserved_sigma(match_idx);
+            end
+        end
+    end
+
     % Initialize arrays for rates and fit data
-    rate = zeros(length(data_gnss), 1);
-    rate_gnss_fit = zeros(length(data_gnss), 1);
+    %rate = zeros(length(data_gnss), 1);
+    %rate_gnss_fit = zeros(length(data_gnss), 1);
     y_fit_model_all = cell(length(data_gnss), 1);
     y_fit_gnss_all = cell(length(data_gnss), 1);
 
@@ -53,14 +70,14 @@ function [WRMS, mean_err_gnss, interped_md_data, misfit, rate, rate_gnss_fit, y_
                 mdl_linear = fitlm(common_time{n}, interped_md_data{n});
                 rate(n) = mdl_linear.Coefficients.Estimate(2);  % Rate of change in mm/yr (slope)
                 intercept{n} = mdl_linear.Coefficients.Estimate(1);  % Intercept in mm
+                y_fit_model_all{n} = mdl_linear.Fitted;
 
                 % Calculate GNSS data linear fit (always needed for misfit calculation)
-                mdl_gnss = fitlm(common_time{n}, data_gnss{n});
-                rate_gnss_fit(n) = mdl_gnss.Coefficients.Estimate(2);  % Rate of change in mm/yr
-
-                % Store fit data for output
-                y_fit_model_all{n} = mdl_linear.Fitted;
-                y_fit_gnss_all{n} = mdl_gnss.Fitted;
+                if ~use_berg_et_al
+                    mdl_gnss = fitlm(common_time{n}, data_gnss{n});
+                    rate_gnss_fit(n) = mdl_gnss.Coefficients.Estimate(2);  % Rate of change in mm/yr
+                    y_fit_gnss_all{n} = mdl_gnss.Fitted;
+                end
 
                 if plot_fig
                     % Create figure showing both model and GNSS data with slope lines
@@ -78,7 +95,7 @@ function [WRMS, mean_err_gnss, interped_md_data, misfit, rate, rate_gnss_fit, y_
 
                     % Plot GNSS data and its linear fit
                     plot(common_time{n}, data_gnss{n}, 'r.', 'DisplayName', 'GNSS Data', 'MarkerSize', 8);
-                    plot(common_time{n}, y_fit_gnss, 'r-', 'LineWidth', 2, 'DisplayName', sprintf('GNSS fit (%.2f mm/yr)', rate_gnss_fit{n}));
+                    plot(common_time{n}, y_fit_gnss, 'r-', 'LineWidth', 2, 'DisplayName', sprintf('GNSS fit (%.2f mm/yr)', rate_gnss_fit(n)));
 
                     xlabel('Time (year)');
                     ylabel('VLM (mm)');
@@ -110,14 +127,14 @@ function [WRMS, mean_err_gnss, interped_md_data, misfit, rate, rate_gnss_fit, y_
                 mdl_linear = fitlm(common_time{n}, interped_md_data{n});
                 rate(n) = mdl_linear.Coefficients.Estimate(2);  % Rate of change in mm/yr (slope)
                 intercept{n} = mdl_linear.Coefficients.Estimate(1);  % Intercept in mm
+                y_fit_model_all{n} = mdl_linear.Fitted;
 
                 % Calculate GNSS data linear fit (always needed for misfit calculation)
-                mdl_gnss = fitlm(common_time{n}, data_gnss{n});
-                rate_gnss_fit(n) = mdl_gnss.Coefficients.Estimate(2);  % Rate of change in mm/yr
-
-                % Store fit data for output
-                y_fit_model_all{n} = mdl_linear.Fitted;
-                y_fit_gnss_all{n} = mdl_gnss.Fitted;
+                if ~use_berg_et_al
+                    mdl_gnss = fitlm(common_time{n}, data_gnss{n});
+                    rate_gnss_fit(n) = mdl_gnss.Coefficients.Estimate(2);  % Rate of change in mm/yr
+                    y_fit_gnss_all{n} = mdl_gnss.Fitted;
+                end
 
                 % Get R-squared from the model
                 R2 = mdl_linear.Rsquared.Ordinary;
@@ -138,7 +155,7 @@ function [WRMS, mean_err_gnss, interped_md_data, misfit, rate, rate_gnss_fit, y_
 
                     % Plot GNSS data and its linear fit
                     plot(common_time{n}, data_gnss{n}, 'r.', 'DisplayName', 'GNSS Data', 'MarkerSize', 8);
-                    plot(common_time{n}, y_fit_gnss, 'r-', 'LineWidth', 2, 'DisplayName', sprintf('GNSS fit (%.2f mm/yr)', rate_gnss_fit{n}));
+                    plot(common_time{n}, y_fit_gnss, 'r-', 'LineWidth', 2, 'DisplayName', sprintf('GNSS fit (%.2f mm/yr)', rate_gnss_fit(n)));
 
                     xlabel('Time (year)');
                     ylabel('VLM (mm)');
@@ -152,7 +169,11 @@ function [WRMS, mean_err_gnss, interped_md_data, misfit, rate, rate_gnss_fit, y_
     end
 
     % Calculate WRMS
-    [WRMS, mean_err_gnss] = calculate_wrms_and_meanerr(data_gnss, err_gnss, interped_md_data);
+    if use_berg_et_al
+        WRMS = [];
+    else
+        [WRMS, mean_err_gnss] = calculate_wrms_and_meanerr(data_gnss, err_gnss, interped_md_data);
+    end
 
     % calculate misfit for each station with different time series
     misfit = zeros(length(data_gnss), 1);
