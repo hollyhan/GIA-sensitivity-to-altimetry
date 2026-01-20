@@ -62,7 +62,7 @@ function data = read_GNET_VLM_table(filename, plot_fig)
 
     % --- Print summary ---
     fprintf('✅ Successfully read %d stations.\n', height(tbl));
-    fprintf('   Time span: %.1f – %.1f yr\n', min(data.tstart), max(data.tend));
+    fprintf('  GNSS Time span varies between: %.1f – %.1f yr\n', min(data.tstart), max(data.tend));
 
     % --- Optional diagnostic plots ---
     if plot_fig
