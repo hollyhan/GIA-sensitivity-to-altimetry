@@ -1,4 +1,4 @@
-function [dice_mass] = get_ice_mass_change(rhoi, xcoords, ycoords, dhdt, time_array, plot_fig)
+function [dice_mass, dice_mass_cum] = get_ice_mass_change(rhoi, xcoords, ycoords, dhdt, time_array, plot_fig)
     % get_ice_mass_change.m
     % Holly Han (created: Nov. 5th, 2024; Last edited: Nov. 5th, 2024).
     % Takes monthly ice elevation change field on a polarstereographic
@@ -17,6 +17,7 @@ function [dice_mass] = get_ice_mass_change(rhoi, xcoords, ycoords, dhdt, time_ar
     %
     % Output:
     % dice_mass - ice mass change (in gigatons)
+    % dice_mass_cum - cumulative ice mass change (in gigatons)
 
     % Check if time argument is provided
     if nargin < 5 || isempty(time_array)
@@ -59,12 +60,21 @@ function [dice_mass] = get_ice_mass_change(rhoi, xcoords, ycoords, dhdt, time_ar
     % Sum mass change over all cells for each time step
     dice_mass = squeeze(sum(mass_change, [1, 2], 'omitnan')); % Sum over latitude and longitude
 
-    % Calculate the total mass change across all years, ignoring NaNs
-    dice_mass_total = sum(dice_mass, 'omitnan');
+    % Cumulative mass change time series
+    if length(time_array) > 1
+        dt = diff(time_array);
+        % Handle uneven time spacing (e.g., 1992, 1993.5, 1995)
+        mean_dt = [dt(1); dt(:)];  % simple alignment
+        dice_mass_cum = cumsum(dice_mass .* mean_dt, 'omitnan');
+        dice_mass_cum = dice_mass_cum - dice_mass_cum(1); % relative to start
+    else
+        dice_mass_cum = 0;
+    end
 
-    average_mass_loss_rate = mean(dice_mass);   % Average mass loss rate (Gt/yr)
-    disp(['Total mass change: ', num2str(dice_mass_total), ' Gt']);
-    disp(['Average mass loss rate: ', num2str(average_mass_loss_rate), ' Gt/yr']);
+    total_mass_change = dice_mass_cum(end);
+    mean_rate = mean(dice_mass, 'omitnan');
+    fprintf('Total cumulative mass change: %.1f Gt (%d–%d)\n', total_mass_change, round(time_array(1)), round(time_array(end)));
+    fprintf('Mean mass change rate: %.1f Gt/yr\n', mean_rate);
 
     % Perform linear regression to get trend if there is more than one time element
     if length(time_array) > 1

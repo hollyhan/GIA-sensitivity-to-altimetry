@@ -237,11 +237,11 @@ end
 
     % Calculate ice mass change in Gt
     disp("Calculating ice mass change based on annual data")
-    [dice_mass_annual] = get_ice_mass_change(rhoi, X, Y, dhdt_annual, years, false);
+    [dice_mass_annual, dice_mass_cum] = get_ice_mass_change(rhoi, X, Y, dhdt_annual, years, false);
 
     %disp("Calculating ice mass change based on monthly data - Debug")
-    %[dice_mass_monthly] = get_ice_mass_change(rhoi, X, Y, dhdt_monthly, Time, false); % check based on the monthly data for the DTU data
-    %[dice_mass_monthly] = get_ice_mass_change(rhoi, X, Y, dhdt_monthly, Time_years(2:end), false); % check based on the monthly data for MEaSUREs
+    %[dice_mass_monthly, dice_mass_cum] = get_ice_mass_change(rhoi, X, Y, dhdt_monthly, Time, false); % check based on the monthly data for the DTU data
+    %[dice_mass_monthly, dice_mass_cum] = get_ice_mass_change(rhoi, X, Y, dhdt_monthly, Time_years(2:end), false); % check based on the monthly data for MEaSUREs
 
     % Transform decimal years to yyyy-mm-dd
     % Extract the integer year

@@ -1,18 +1,20 @@
-function [mass_changes, grid_areas] = altimetry_to_mass_changes(dhdt_data, lat_grid, lon_grid, options)
-    % Convert altimetry elevation changes to mass changes for GIA analysis
-    %
-    % Inputs:
-    %   dhdt_data - elevation change rates [m/year] (n_lat x n_lon x n_time) or (n_points x n_time)
-    %   lat_grid - latitude coordinates [degrees] (vector or grid)
-    %   lon_grid - longitude coordinates [degrees] (vector or grid) 
-    %   options - structure with parameters:
-    %     .rho_ice - ice density [kg/m³] (default: 917)
-    %     .grid_spacing - grid spacing [degrees] or [m] (auto-detected if not provided)
-    %     .mask - ice mask (same size as dhdt_data, optional)
-    %
-    % Outputs:
-    %   mass_changes - mass changes [kg] (n_points x n_time)
-    %   grid_areas - area of each grid cell [m²] (n_points x 1)
+function [mass_changes, grid_areas, cumulative_mass] = altimetry_to_mass_changes( ...
+    dhdt_data, lat_grid, lon_grid, years, start_year, end_year, options)
+% Convert altimetry elevation changes to mass changes and compute cumulative totals.
+%
+% Inputs:
+%   dhdt_data - elevation change rates [m/year] (n_lat x n_lon x n_time) or (n_points x n_time)
+%   lat_grid, lon_grid - coordinates [degrees]
+%   years - vector of time stamps corresponding to 3rd dimension of dhdt_data
+%   start_year, end_year - define time window for cumulative integration
+%   options - structure with parameters:
+%       .rho_ice - ice density [kg/m³] (default: 917)
+%       .mask - optional logical mask
+%
+% Outputs:
+%   mass_changes  - instantaneous mass change rates [kg/yr]
+%   grid_areas    - grid cell areas [m²]
+%   cumulative_mass - cumulative mass change [kg] relative to start_year
 
     % Parse options
     if nargin < 4 || isempty(options)
@@ -101,12 +103,30 @@ function [mass_changes, grid_areas] = altimetry_to_mass_changes(dhdt_data, lat_g
     areas_expanded = repmat(grid_areas, 1, n_time);
     
     % Calculate mass changes
-    mass_changes = dhdt_vec .* options.rho_ice .* areas_expanded; % kg
+    mass_changes = dhdt_vec .* options.rho_ice .* areas_expanded / 1e12; % Gt
     
     fprintf('Converted %d data points with %d time steps\n', size(mass_changes, 1), n_time);
-    fprintf('Mass change range: %.2e to %.2e kg\n', min(mass_changes(:)), max(mass_changes(:)));
-    
+    fprintf('Mass change range: %.2e to %.2e Gt\n', min(mass_changes(:)), max(mass_changes(:)));
+
+     % --- Compute cumulative mass change ---
+    if nargin >= 6 && ~isempty(start_year) && ~isempty(end_year)
+        [~, i_start] = min(abs(years - start_year));
+        [~, i_end] = min(abs(years - end_year));
+        if i_start >= i_end
+            error('end_year must be greater than start_year.');
+        end
+        size(dhdt_vec)
+        % Integrate (sum) dh/dt * rho * area between start and end
+        dh_cumulative = cumsum(dhdt_vec(:,1:end-1), 2, 'omitnan');
+        size(dh_cumulative)
+        cumulative_mass = dh_cumulative(:,i_end-1) * options.rho_ice .* grid_areas / 1e12; % Gt;
+    else
+        cumulative_mass = [];
+    end
+
+    fprintf('Processed %d cells, %d timesteps (%g–%g)\n', size(mass_changes,1), n_time, years(1), years(end));
 end
+
 
 function areas = calculate_grid_areas_3d(lat_grid, lon_grid)
     % Calculate exact area of each grid cell using actual coordinate spacing
