@@ -74,9 +74,36 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_ellipsoid, l
         % Apply the firn correction to the ice thickness for monthly interval
         dh_corr = dh - dfac;
 
+        fprintf('\n=== DEBUG MEaSUREs raw fields ===\n');
+        fprintf('dh range: %.3f to %.3f m\n', min(dh(:),[],'omitnan'), max(dh(:),[],'omitnan'));
+        fprintf('dfac range: %.3f to %.3f m\n', min(dfac(:),[],'omitnan'), max(dfac(:),[],'omitnan'));
+        fprintf('dh_corr range: %.3f to %.3f m\n', min(dh_corr(:),[],'omitnan'), max(dh_corr(:),[],'omitnan'));
+
+        ddh = diff(dh,1,3);
+        ddfac = diff(dfac,1,3);
+        ddhcorr = diff(dh_corr,1,3);
+
+        fprintf('monthly diff dh range: %.3f to %.3f m/month\n', min(ddh(:),[],'omitnan'), max(ddh(:),[],'omitnan'));
+        fprintf('monthly diff dfac range: %.3f to %.3f m/month\n', min(ddfac(:),[],'omitnan'), max(ddfac(:),[],'omitnan'));
+        fprintf('monthly diff dh_corr range: %.3f to %.3f m/month\n', min(ddhcorr(:),[],'omitnan'), max(ddhcorr(:),[],'omitnan'));
+        fprintf('=================================\n\n');
+
         % Isolate month-to-month changes
-        dhdt_monthly = diff(dh_corr,1,3); % get first difference along the 'time' axis
-        dhdt_monthly = dhdt_monthly(:, :, 12:end); % get data from 1993-2023 (i.e. skip the first year)
+        dhdt_monthly = diff(dh_corr, 1, 3); % 383 monthly intervals
+        Time = Time(2:end);                 % align Time with diff output
+
+        % Quality control: remove unphysical monthly jumps
+        jump_thresh = 10; % m/month
+        bad_jump = abs(dhdt_monthly) > jump_thresh;
+
+        fprintf('MEaSUREs QC: monthly jumps > %.1f m/month: %d / %d = %.4f%%\n', ...
+            jump_thresh, sum(bad_jump(:)), numel(bad_jump), ...
+            100 * sum(bad_jump(:)) / numel(bad_jump));
+
+        dhdt_monthly(bad_jump) = NaN;
+
+        % Trim to start from the second year
+        dhdt_monthly = dhdt_monthly(:, :, 12:end);
         Time = Time(12:end);
 
         % Convert time from seconds since 1950-01-01 to decimal years
@@ -86,7 +113,6 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_ellipsoid, l
         
         % Get time vector for the data we'll extract from actual Time data
         years = unique(floor(Time_years)); % get unique years
-        years = years(2:end); % remove the first year (incomplete)
 
     elseif strcmp(data_name, 'DTU2016')
         disp("Using ice elevation data from Khan et al. 2016")
@@ -186,7 +212,7 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_ellipsoid, l
     disp(['Size of X: ', num2str(size(X))]);
     disp(['Size of Y: ', num2str(size(Y))]);
     disp(['Size of Time: ', num2str(size(Time))]);
-    if strcmp(data_name, 'measureItsLive') || strcmp(data_name, 'DTU2016')
+    if strcmp(data_name, 'measureItsLive-GEMB') || strcmp(data_name, 'measureItsLive-GSFC') || strcmp(data_name, 'DTU2016')
         disp(['Size of dhdt_monthly: ', num2str(size(dhdt_monthly))]);
     end
     
@@ -211,7 +237,12 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_ellipsoid, l
         dhdt_monthly_reshaped = reshape(dhdt_monthly, size(dhdt_monthly, 1), size(dhdt_monthly, 2), 12, num_years);
         
         % Sum over the 12 months (3rd dimension) to get annual changes ignoring NaNs
+        % Require enough valid months per year
+        valid_count = sum(~isnan(dhdt_monthly_reshaped), 3);
+
         dhdt_annual = sum(dhdt_monthly_reshaped, 3, 'omitnan');
+        dhdt_annual(valid_count < 10) = NaN; % require at least 10 valid months
+
         dhdt_annual = squeeze(dhdt_annual);
     elseif strcmp(data_name, 'Buffalo2025-GEMB') || strcmp(data_name, 'Buffalo2025-GSFC') || strcmp(data_name, 'Buffalo2025-IMAU')
         num_years = size(dhdt_annual, 3);
@@ -219,6 +250,63 @@ function [h_annual, dhdt_annual, dhdt_monthly, years_thickness, lat_ellipsoid, l
         dhdt_monthly = NaN;
     end
     
+    %% DEBUG: inspect dhdt_annual on ORIGINAL altimetry grid
+    fprintf('\n=====================================\n');
+    fprintf('DEBUG ORIGINAL ALT GRID: %s\n', data_name);
+    fprintf('Size X: %s\n', mat2str(size(X)));
+    fprintf('Size Y: %s\n', mat2str(size(Y)));
+    fprintf('Size dhdt_annual: %s\n', mat2str(size(dhdt_annual)));
+    fprintf('Years: %.2f to %.2f, n=%d\n', years(1), years(end), numel(years));
+
+    tmp = dhdt_annual;
+    fprintf('NaNs: %d / %d = %.2f%%\n', ...
+        sum(isnan(tmp(:))), numel(tmp), 100*sum(isnan(tmp(:)))/numel(tmp));
+
+    fprintf('Range original dhdt_annual: %.3f to %.3f m/yr\n', ...
+        min(tmp(:), [], 'omitnan'), max(tmp(:), [], 'omitnan'));
+
+    fprintf('Mean/std original dhdt_annual: %.3f / %.3f m/yr\n', ...
+        mean(tmp(:), 'omitnan'), std(tmp(:), 'omitnan'));
+
+    % Per-year range check
+    for kk = 1:size(dhdt_annual,3)
+        d = dhdt_annual(:,:,kk);
+        fprintf('Year %.0f: min %.3f, max %.3f, mean %.3f, std %.3f m/yr\n', ...
+            years(kk), ...
+            min(d(:), [], 'omitnan'), ...
+            max(d(:), [], 'omitnan'), ...
+            mean(d(:), 'omitnan'), ...
+            std(d(:), 'omitnan'));
+    end
+
+    % Find extreme pixels
+    abs_thresh = 20; % m/yr; adjust if needed
+    bad = abs(dhdt_annual) > abs_thresh;
+    fprintf('Pixels with |dhdt_annual| > %.1f m/yr: %d\n', ...
+        abs_thresh, sum(bad(:), 'omitnan'));
+
+    [i_bad, j_bad, t_bad] = ind2sub(size(dhdt_annual), find(bad, 10, 'first'));
+
+    for nn = 1:numel(i_bad)
+        fprintf('Bad pixel #%d: i=%d, j=%d, year=%.0f, dhdt=%.3f m/yr\n', ...
+            nn, i_bad(nn), j_bad(nn), years(t_bad(nn)), ...
+            dhdt_annual(i_bad(nn), j_bad(nn), t_bad(nn)));
+    end
+
+    % Plot one suspicious year on original X-Y grid
+    [~, worst_t] = max(squeeze(max(max(abs(dhdt_annual), [], 1, 'omitnan'), [], 2, 'omitnan')));
+
+    %figure('Color','w');
+    %imagesc(X, Y, dhdt_annual(:,:,worst_t)');
+    %set(gca,'YDir','normal');
+    %axis equal tight;
+    %colorbar;
+    %title(sprintf('%s original grid dhdt annual, year %.0f', data_name, years(worst_t)));
+    %xlabel('X');
+    %ylabel('Y');
+    %caxis([-5 5]); % use wider range if needed
+    fprintf('=====================================\n\n');
+
     % Calculate the total change across all years, ignoring NaNs
     dhdt_total = sum(dhdt_annual, 3, 'omitnan');
 
@@ -305,7 +393,7 @@ end
     fprintf('Min dhdt_annual: %.3f m/yr\n', min(min(dhdt_annual(:))));
     fprintf('Max dhdt_annual: %.3f m/yr\n', max(max(dhdt_annual(:))));
     fprintf('Mean dhdt_annual: %.3f m/yr\n', mean(mean(dhdt_annual(:))));
-    fprintf('Std dhdt_annual: %.3f m/yr\n', std(std(dhdt_annual(:))));
+    fprintf('Std dhdt_annual: %.3f m/yr\n', std(dhdt_annual(:), 'omitnan'));
 
     % Check cumulative loss
     cumulative_loss = sum(dhdt_annual, 3, 'omitnan');
@@ -352,7 +440,7 @@ end
     dhdt_annual = permute(dhdt_annual, [2, 1, 3]); % flip the x and y axes
     dhdt_total = permute(dhdt_total, [2, 1]); % flip the x and y axes
 
-    if strcmp(data_name, 'measureItsLive') || strcmp(data_name, 'DTU2016')
+    if strcmp(data_name, 'measureItsLive-GEMB') || strcmp(data_name, 'measureItsLive-GSFC') || strcmp(data_name, 'DTU2016')
         dhdt_monthly = permute(dhdt_monthly, [2, 1, 3]); % flip the x and y axes
     end
 
