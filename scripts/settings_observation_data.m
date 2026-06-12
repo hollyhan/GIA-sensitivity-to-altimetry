@@ -70,7 +70,12 @@ plot_gnss = true;
 savefig_gnss = false;
 
 %----------------------- GIA Data Setting -----------------------%
-fpath_gia = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/gia/VLM_sites.dat';
+%fpath_gia = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/gia/VLM_sites.dat';
+fpath_gia = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/gia/VLM_Greenland_with_NWusingHuy3.dat';
+
+%----------------------- GIA Data Setting -----------------------%
+fpath_basin_boundaries_rignot = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/drainage_basins/GRE_Basins_IMBIE2_v1.3_Rignot/GRE_Basins_IMBIE2_v1.3.shp';
+fpath_basin_boundaries_mouginot = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/data/drainage_basins/GRE_Basins_PS_v.1.4.2_Mouginot/Greenland_Basins_PS_v1.4.2.shp';
 
 %--------------------- Saltmarsh Data Setting --------------------%
 % Setup for inputting saltmarsh data point coordinate
