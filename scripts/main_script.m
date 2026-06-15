@@ -4,32 +4,33 @@ addpath('~/Desktop/Code/matlab_functions/ITS_LIVE/')
 addpath('~/Desktop/Data/Altimetry/Greenland/')
 
 %% Define which steps to run
-steps=[13];%
-
+steps=[10]
 % Load settings
 run('settings_observation_data.m');
 run('settings_gia_parameterization.m');
 
-% Read in external gnss data
-if use_berg_et_al
-    % update the gnss rates for the 53 stations
-    elas_data = read_GNET_Elastic_VLM(fullfile(fpath_gnss_new,'Table_S1_GNET_VLM_Berg_et_al.xlsx'), false);
-    %stn_id_berg = cellstr(elas_data.station)';
+if any(steps==0) % Run only once to define the dataset definitions and colors
+    % Read in external gnss data
+    if use_berg_et_al
+        % update the gnss rates for the 53 stations
+        elas_data = read_GNET_Elastic_VLM(fullfile(fpath_gnss_new,'Table_S1_GNET_VLM_Berg_et_al.xlsx'), false);
+        %stn_id_berg = cellstr(elas_data.station)';
+    end
+
+    % === Dataset definitions (used across steps) ===
+    dataset_names = {'MEaSUREs ITS_LIVE-GEMB','MEaSUREs ITS_LIVE-GSFC','DTU2025-RACMO2.3p2', ...
+                    'UB-GEMB','UB-GSFC','UB-IMAU'};
+
+    % Colors (color-blind-friendly palette)
+    colors = {[0.2157, 0.4941, 0.7216],[0.5294, 0.6667, 0.8627], ...
+            [1.0000, 0.7647, 0.4000],[0.4157, 0.2392, 0.6039],[0.6196, 0.4235, 0.7843], ...
+            [0.7725, 0.6392, 0.8706]};
+
+    np = 64; % Number of colors
+    blue_to_white = [linspace(0,1,np/2)', linspace(0,1,np/2)', ones(np/2,1)];
+    white_to_red = [ones(np/2,1), linspace(1,0,np/2)', linspace(1,0,np/2)'];
+    custom_cmap = [blue_to_white; white_to_red];
 end
-
-% === Dataset definitions (used across steps) ===
-dataset_names = {'MEaSUREs ITS_LIVE-GEMB','MEaSUREs ITS_LIVE-GSFC','DTU2025-RACMO2.3p2', ...
-                 'UB-GEMB','UB-GSFC','UB-IMAU'};
-
-% Colors (color-blind-friendly palette)
-colors = {[0.2157, 0.4941, 0.7216],[0.5294, 0.6667, 0.8627], ...
-          [1.0000, 0.7647, 0.4000],[0.4157, 0.2392, 0.6039],[0.6196, 0.4235, 0.7843], ...
-          [0.7725, 0.6392, 0.8706]};
-
-np = 64; % Number of colors
-blue_to_white = [linspace(0,1,np/2)', linspace(0,1,np/2)', ones(np/2,1)];
-white_to_red = [ones(np/2,1), linspace(1,0,np/2)', linspace(1,0,np/2)'];
-custom_cmap = [blue_to_white; white_to_red];
 
 if any(steps==1)
     % Process GNSS data
@@ -105,32 +106,6 @@ if any(steps==2)
 
 end
 
-% Bundle per-dataset fields into structured array
-load_dhdt_masked_data = true;
-if load_dhdt_masked_data
-    load('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/dhdt_masked.mat');
-    % If data does not exist, run Step 3
-end
-datasets = {
-    struct('name','MEaSUREs ITS_LIVE-GEMB', 'h',h_annual_1, 'lat',lat_sphere_1, 'lon',long_sphere_1, ...
-        'years',years_altimetry_1', 'years_masked', dhdt_masked_years{1}, 'X',X_1, 'Y',Y_1, ...
-        'dhdt',dhdt_annual_1, 'dhdt_masked',dhdt_masked{1})
-    struct('name','MEaSUREs ITS_LIVE-GSFC', 'h',h_annual_2, 'lat',lat_sphere_2, 'lon',long_sphere_2, ...
-        'years',years_altimetry_2', 'years_masked',dhdt_masked_years{2}, 'X',X_2, 'Y',Y_2, ...
-        'dhdt',dhdt_annual_2, 'dhdt_masked',dhdt_masked{2})
-    struct('name','DTU2025-RACMO2.3p2', 'h',h_annual_3, 'lat',lat_sphere_3, 'lon',long_sphere_3, ...
-        'years',years_altimetry_3', 'years_masked',dhdt_masked_years{3}, 'X',X_3, 'Y',Y_3, ...
-        'dhdt',dhdt_annual_3, 'dhdt_masked',dhdt_masked{3})
-    struct('name','UB-GEMB', 'h',h_annual_4, 'lat',lat_sphere_4, 'lon',long_sphere_4, ...
-        'years',years_altimetry_4', 'years_masked',dhdt_masked_years{4}, 'X',X_4, 'Y',Y_4, ...
-        'dhdt',dhdt_annual_4, 'dhdt_masked',dhdt_masked{4})
-    struct('name','UB-GSFC', 'h',h_annual_5, 'lat',lat_sphere_5, 'lon',long_sphere_5, ...
-        'years',years_altimetry_5', 'years_masked',dhdt_masked_years{5}, 'X',X_5, 'Y',Y_5, ...
-        'dhdt',dhdt_annual_5, 'dhdt_masked',dhdt_masked{5})
-    struct('name','UB-IMAU', 'h',h_annual_6, 'lat',lat_sphere_6, 'lon',long_sphere_6, ...
-        'years',years_altimetry_6', 'years_masked',dhdt_masked_years{6}, 'X',X_6, 'Y',Y_6, ...
-        'dhdt',dhdt_annual_6, 'dhdt_masked',dhdt_masked{6})
-};
 
 if any(steps==3)
     plot_mask = false;
@@ -302,7 +277,7 @@ if any(steps==3)
     end
 
     % Attach the first year for h_annual field that will be reconstructed later
-    for k = 1:length(dhdt_masked)
+    for k = 1:length(data_sets)
         if ~isempty(dhdt_masked{k})
             % Append one earlier timestamp for reconstructing thickness fields
             dhdt_masked_years{k} = [dhdt_masked_years{k}(1) - 1, dhdt_masked_years{k}];
@@ -365,6 +340,35 @@ if any(steps==3)
     end
 
     disp('====================================');
+end
+
+if any(steps==3.5)
+    % Bundle per-dataset fields into structured array
+    load_dhdt_masked_data = true;
+    if load_dhdt_masked_data
+        load('/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/dhdt_masked.mat');
+        % If data does not exist, run Step 3
+    end
+    datasets = {
+        struct('name','MEaSUREs ITS_LIVE-GEMB', 'h',h_annual_1, 'lat',lat_sphere_1, 'lon',long_sphere_1, ...
+            'years',years_altimetry_1', 'years_masked', dhdt_masked_years{1}, 'X',X_1, 'Y',Y_1, ...
+            'dhdt',dhdt_annual_1, 'dhdt_masked',dhdt_masked{1})
+        struct('name','MEaSUREs ITS_LIVE-GSFC', 'h',h_annual_2, 'lat',lat_sphere_2, 'lon',long_sphere_2, ...
+            'years',years_altimetry_2', 'years_masked',dhdt_masked_years{2}, 'X',X_2, 'Y',Y_2, ...
+            'dhdt',dhdt_annual_2, 'dhdt_masked',dhdt_masked{2})
+        struct('name','DTU2025-RACMO2.3p2', 'h',h_annual_3, 'lat',lat_sphere_3, 'lon',long_sphere_3, ...
+            'years',years_altimetry_3', 'years_masked',dhdt_masked_years{3}, 'X',X_3, 'Y',Y_3, ...
+            'dhdt',dhdt_annual_3, 'dhdt_masked',dhdt_masked{3})
+        struct('name','UB-GEMB', 'h',h_annual_4, 'lat',lat_sphere_4, 'lon',long_sphere_4, ...
+            'years',years_altimetry_4', 'years_masked',dhdt_masked_years{4}, 'X',X_4, 'Y',Y_4, ...
+            'dhdt',dhdt_annual_4, 'dhdt_masked',dhdt_masked{4})
+        struct('name','UB-GSFC', 'h',h_annual_5, 'lat',lat_sphere_5, 'lon',long_sphere_5, ...
+            'years',years_altimetry_5', 'years_masked',dhdt_masked_years{5}, 'X',X_5, 'Y',Y_5, ...
+            'dhdt',dhdt_annual_5, 'dhdt_masked',dhdt_masked{5})
+        struct('name','UB-IMAU', 'h',h_annual_6, 'lat',lat_sphere_6, 'lon',long_sphere_6, ...
+            'years',years_altimetry_6', 'years_masked',dhdt_masked_years{6}, 'X',X_6, 'Y',Y_6, ...
+            'dhdt',dhdt_annual_6, 'dhdt_masked',dhdt_masked{6})
+    };
 end
 
 if any(steps==4)
@@ -645,7 +649,7 @@ if any(steps==5)
         clear md2_regional_with_mask;
 
         disp('== Loading DTU2025 ==');
-        [md3_regional_with_mask, mass_report_3_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_3, lat_sphere_3, long_sphere_3, dhdt_masked_years{3}, md_refined, X_4, Y_4, dhdt_masked{3}, 'sigma', 1e3, 'sigma_final', 1e3);
+        [md3_regional_with_mask, mass_report_3_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_3, lat_sphere_3, long_sphere_3, dhdt_masked_years{3}, md_refined, X_3, Y_3, dhdt_masked{3}, 'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md3_regional_with_mask.mat'), 'md3_regional_with_mask');
         clear md3_regional_with_mask;
 
@@ -847,7 +851,8 @@ end
 
 if any(steps==8)
 
-    load_md_solved = true;
+    load_md_solved = false;
+    label = 'with_mask';
     if load_md_solved
         mds_solved = cell(numel(datasets), 1);
         for k = 1:numel(datasets)
@@ -959,7 +964,7 @@ if any(steps==9)
         rates_matrix(:, k) = rate_model{k};
     end
 
-    % Create bar plot (Fig. Supp 2)
+    % Create bar plot (Figure S4)
     x_pos = 1:num_stations;
     bar_width = 0.8;
 
@@ -980,19 +985,19 @@ if any(steps==9)
 
 
     % --- Labels & layout ---
-    xlabel('Station ID', 'FontSize', 14);
-    ylabel('VLM Rate (mm/yr)', 'FontSize', 14);
-    title('Modeld elastic and GNSS-observed VLM rates at Greenland GNSS stations', 'FontSize', 16);
-    legend('show', 'Location', 'northwest', 'FontSize', 14, 'Interpreter','none');
+    xlabel('Station ID', 'FontSize', 16);
+    ylabel('VLM Rate (mm/yr)', 'FontSize', 16);
+    %title('Modeld elastic and GNSS-observed VLM rates at Greenland GNSS stations', 'FontSize', 16);
+    legend('show', 'Location', 'northwest', 'FontSize', 16, 'Interpreter','none');
     grid on;
     set(gca, 'FontSize', 14);
     xticks(x_pos);
     xticklabels(stn_id);
-    xtickangle(45);
+    xtickangle(70);
 
     % Save the figure
     if save_fig
-        saveas(gcf, fullfile(fpath_results_figures, sprintf('FigureS5-Elastic vs GNSS Rate Comparison Across All Stations_%s_%s.png', rheology_choice, label)));
+        saveas(gcf, fullfile(fpath_results_figures, sprintf('FigureS4-Elastic vs GNSS Rate Comparison Across All Stations_%s_%s.png', rheology_choice, label)));
     end
 
     % Add statistics summary
@@ -1011,7 +1016,7 @@ end
 if any(steps == 10)
     fprintf('\n=== Plotting GIA–GNSS Residual Comparison ===\n');
     % Figure S4.
-    save_fig = true;
+    save_fig = false;
 
     num_datasets = numel(datasets);
     num_stations = numel(stn_id);
@@ -1106,7 +1111,7 @@ if any(steps == 10)
     nMatched = sum(~isnan(applied_elas_Can));
     fprintf('\n✅ Elastic Greenland and Canadian PG corrections applied for %d of %d stations.\n', nMatched, num_stations);
 
-    %% --- Plot raw residuals (Figure S4a)---
+    %% --- Plot raw residuals (Figure S5a)---
     figure('Color', 'w', 'Position', [100 100 1700 600]);
     x = 1:num_stations;
     b = bar(x, y, 1);
@@ -1120,15 +1125,15 @@ if any(steps == 10)
         b(k).FaceColor = colors{k};
     end
 
-    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',14);
-    xtickangle(45);
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',16);
+    xtickangle(70);
     xlabel('Station ID'); ylabel('Residual (mm/yr)');
     title('Residuals (GNSS minus Model)');
-    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest','FontSize', 14,'Interpreter','none');
+    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest','FontSize', 16,'Interpreter','none');
     grid on; box on;
-    ylim([-7 13]);
+    ylim([-10 15]);
     if save_fig
-        saveas(gcf, fullfile(fpath_results_figures, sprintf('Residuals_Raw_%s.png', label)));
+        saveas(gcf, fullfile(fpath_results_figures, sprintf('FigureS5a-Residuals_Raw_%s.png', label)));
     end
 
     %% --- Quick check summary for a single altimetry product (choose the first dataset)---
@@ -1154,11 +1159,12 @@ if any(steps == 10)
     figure('Color','w','Position',[100 100 1700 600]);
     b1 = bar(x, y_corr_1D_total, 1); hold on;
     for k = 1:num_datasets, b1(k).FaceColor = colors{k}; end
-    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',14);
-    xtickangle(45);
-    xlabel('Station ID'); ylabel('Residual (mm/yr)');
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',16);
+    xtickangle(70);
+    %xlabel('Station ID'); 
+    ylabel('Residual (mm/yr)');
     title('Residuals (1D GIA-corrected total signal): GNSS − Model');
-    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest', 'FontSize', 14,'Interpreter','none');
+    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest', 'FontSize', 16,'Interpreter','none');
     grid on; box on;
     ylim([-7 13]);
     if save_fig
@@ -1170,7 +1176,7 @@ if any(steps == 10)
     b2 = bar(x, y_corr_3D_total, 1); hold on;
     for k = 1:num_datasets, b2(k).FaceColor = colors{k}; end
     set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',14);
-    xtickangle(45);
+    xtickangle(70);
     xlabel('Station ID'); ylabel('Residual (mm/yr)');
     title('Residuals (3D GIA-corrected total signal): GNSS − Model');
     legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest', 'FontSize', 14,'Interpreter','none');
@@ -1185,7 +1191,7 @@ if any(steps == 10)
     b2 = bar(x, y_corr_3D_DG_PG, 1); hold on;
     for k = 1:num_datasets, b2(k).FaceColor = colors{k}; end
     set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',14);
-    xtickangle(45);
+    xtickangle(70);
     xlabel('Station ID'); ylabel('Residual (mm/yr)');
     title('Residuals (3D GIA-corrected for DG and PG signals): GNSS − Model');
     legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest', 'FontSize', 14,'Interpreter','none');
@@ -1199,7 +1205,7 @@ if any(steps == 10)
     figure('Color','w','Position',[100 100 1700 600]);
     b2 = bar(x, gia_val_LIA, 1); hold on;
     set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',14);
-    xtickangle(45);
+    xtickangle(70);
     xlabel('Station ID'); ylabel('VLM(mm/yr)');
     title('GIA signals that can be attributed to LIA');
     legend('Total 3D GIA minus DG and PG components', 'Location','northwest', 'FontSize', 14,'Interpreter','none');
@@ -1213,15 +1219,15 @@ if any(steps == 10)
     figure('Color','w','Position',[100 100 1700 600]);
     b2 = bar(x, y_corr_total, 1); hold on;
     for k = 1:num_datasets, b2(k).FaceColor = colors{k}; end
-    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',14);
-    xtickangle(45);
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',16);
+    xtickangle(70);
     xlabel('Station ID'); ylabel('Residual (mm/yr)');
-    title('Residuals (corrected for 3D GIA, LIA, PG and contemporary PG in Canada)');
-    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest', 'FontSize', 14,'Interpreter','none');
-    ylim([-7 13]);
+    %title('Residuals (corrected for 3D GIA, LIA, PG and contemporary PG in Canada)');
+    legend(cellfun(@(d)d.name,datasets,'UniformOutput',false),'Location','northwest', 'FontSize', 16,'Interpreter','none');
+    ylim([-10 15]);
     grid on; box on;
     if save_fig
-        saveas(gcf, fullfile(fpath_results_figures, sprintf('Residuals_corrected_for_3D_GIA_LIA_PG_and_contemporary_PG_Can_%s_%s.png', rheology_choice, label)));
+        saveas(gcf, fullfile(fpath_results_figures, sprintf('FigureS5b-Residuals_corrected_for_3D_GIA_LIA_PG_and_contemporary_PG_Can_%s_%s.png', rheology_choice, label)));
     end
 end
 
@@ -1232,8 +1238,7 @@ if any(steps==11)
     % Note to myself: Covered period varies depending on the availability of ice altimetry product. But for the elastic calculation, it makes sense to show the common period of the GNSS duration (which also varies by stations)
 
     % spatial map of mean of total masked thickness change on the ISSM mesh
-    load_md = true;
-    label = 'with_mask';
+    load_md = false;
     plot_stn_id = false;
     plot_total_thickness_change_for_each_ice_data = false;
 
@@ -1288,7 +1293,8 @@ if any(steps==11)
     fprintf('Median std_dice_rate_all: %.3f m/yr\n', median(std_dice_rate_all, 'omitnan'))
     fprintf('Min of std_dice_rate_all: %.3f m/yr\n', min(std_dice_rate_all));
     fprintf('Max of std_dice_rate_all: %.3f m/yr\n', max(std_dice_rate_all));
-    fprintf('Range of std_dice_rate_all: %.3f m/yr\n', range(range(std_dice_rate_all, 'omitnan')))
+    fprintf('Range of std_dice_rate_all: %.3f m/yr\n', ...
+    max(std_dice_rate_all) - min(std_dice_rate_all));
 
     % Panel 1
     disp('Creating Figure 1a')
@@ -1308,11 +1314,14 @@ if any(steps==11)
     hold on
     caxis([-1 1]);
     greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
+    plot_basins_rignot(fpath_basin_boundaries_rignot,'Color',[0.35 0.35 0.35],'LineWidth',0.8)
+    %plot_basins_mouginot(fpath_basin_boundaries_mouginot,'Color',[0.35 0.35 0.35],'LineWidth',0.8)
     colormap(flip(custom_cmap))
     grid off
-    axis off
+    axis off  
+    axis equal
     plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor','w', 'MarkerSize',6)
-    title({'Inter-product mean annual ice thickness change', 'between 2003-2020 (m/yr)'}, 'FontSize',16)
+    %title({'Inter-product mean annual ice thickness change', 'between 2003-2020 (m/yr)'}, 'FontSize',16)
     colorbar()
     %graticulepsn(meshG.lat,meshG.long);
     if save_fig
@@ -1333,11 +1342,12 @@ if any(steps==11)
     hold on
     caxis([0 1]);
     greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
+    plot_basins_rignot(fpath_basin_boundaries_rignot,'Color',[0.35 0.35 0.35],'LineWidth',0.8)
     colormap(flip(colormap('hot')))
     grid off
     axis off
     plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor','w', 'MarkerSize',6)
-    title('Inter-product standard deviation (m/yr)', 'FontSize',16)
+    %title('Inter-product standard deviation (m/yr)', 'FontSize',16)
     colorbar()
     if save_fig
         exportgraphics(gcf, fullfile(fpath_results_figures,'Figure1b.png'), 'Resolution',300);
@@ -1573,7 +1583,7 @@ if any(steps==13)
     itslive_imagesc(5);
     hold(ax1,'on');
     greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
-
+    plot_basins_rignot(fpath_basin_boundaries_rignot,'Color',[0.35 0.35 0.35],'LineWidth',0.8)
     ax1.ColorScale = 'log';
     clim(ax1, [1 1e4]);
     view(ax1, 2); axis(ax1,'equal','tight');
@@ -1617,7 +1627,7 @@ if any(steps==13)
     cb1.Label.String = 'Velocity (m/yr, log scale)';
 
     cb2 = colorbar(ax2,'Location','southoutside');
-    cb2.Label.String = 'Mean VLM (mm/yr)';
+    cb2.Label.String = 'Mean VLM rate (mm/yr)';
 
     %% --- Restore axes positions (critical!)
     ax1.Position = origPos;
@@ -1638,7 +1648,7 @@ if any(steps==13)
     end
 
     if save_fig
-        saveas(gcf, fullfile(fpath_results_figures, 'Figure2a.png'));
+        saveas(gcf, fullfile(fpath_results_figures, 'Figure2a_with_basins.png'));
     end
 
     % panel 2
@@ -1669,15 +1679,15 @@ if any(steps==13)
     %     'o', 'Color','k','MarkerFaceColor','none','MarkerSize',6, 'LineWidth',1.2);
     grid on;
     set(gca,'GridAlpha',0.25);   % lighter grid
-    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',14);xtickangle(45);
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',16);xtickangle(70);
     xlim([0.5 num_stations+0.5]);
-    %ylim([0 max(mean_vlm_rates + std_vlm_rates)*1.10]);
+    ylim([-2 18]);
 
-    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',12); xtickangle(45);
-    xlabel('Station ID')
-    ylabel('Vertical land motion rate (mm/yr)');
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',16); xtickangle(70);
+    xlabel('Station ID','FontSize',16);
+    ylabel('VLM rate (mm/yr)','FontSize',16);
     title('GNSS-observed and modeled elastic VLM rates in at Greenland GNSS stations','FontSize',16)
-    legend({'Observed GNSS rate (Berg et al., 2024)','Modeled elastic VLM distribution (median, interquartile range, full range)','Model mean'}, 'Location','northwest');
+    legend({'Observed GNSS rate (Berg et al., 2024)','Modeled elastic VLM distribution','Model mean'}, 'Location','northwest','FontSize',16);
 
     if save_fig
         exportgraphics(gcf, fullfile(fpath_results_figures,'Figure2b.png'), 'Resolution',300);
@@ -1699,13 +1709,13 @@ if any(steps==13)
     hold on
     grid on;
     set(gca,'GridAlpha',0.25);   % lighter grid
-    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',14);xtickangle(45);
-    ylabel('Mean residual and uncertainty (mm/yr)');
-    xlabel('Station ID')
-    title('Misfits between GNSS-observed and modeled elastic VLM at Greenland GNSS Sites')
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',16); xtickangle(70);
+    ylabel('Mean residual and uncertainty (mm/yr)','FontSize',16);
+    %xlabel('Station ID')
+    %title('Misfits between GNSS-observed and modeled elastic VLM at Greenland GNSS Sites')
     xlim([0.5 53.5]);
-    ylim([-6 14])
-    yline(0,'k-','LineWidth',1);
+    ylim([-10 15])
+    yline(0,'k-','LineWidth',1.5);
 
     if save_fig
         exportgraphics(gcf, fullfile(fpath_results_figures,'Figure3a.png'), 'Resolution',300);
@@ -1730,9 +1740,11 @@ if any(steps==13)
     % Optional: save
     writetable(T_residuals, fullfile(fpath_results_general,'VLM_residuals_table_raw.csv'));
 
-    disp('Creating Figure 3b') % plot isolating residual only due to GIA, LIA and 20th-Century PGs.
+    disp('Creating Figure 3b') % plot isolating residual between model and data after correcing for elastic contribution from peripheral glaciers.
     residual_corrected = NaN(num_stations, 1);
     residual_corrected_err = NaN(num_stations, 1);
+    gia_ratio = NaN(num_stations, 1);
+
     for i = 1:num_stations
         name_gnss = string(stn_id{i});
         match_idx_elas = find(elas_data.station == name_gnss, 1);
@@ -1740,6 +1752,10 @@ if any(steps==13)
             residual_corrected(i) = gnss_rates_berg(i) - (mean_vlm_rates_corr(i) + elas_data.Uelastic_CanPG(match_idx_elas) + elas_data.Uelastic_GrPG(match_idx_elas));
             residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + (0.5 * vlm_iqr_corr(i)).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
             %residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + std_vlm_rates_corr(i).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
+            % Calculate gia signal to uncertainty ratio
+            if residual_corrected_err(i) > 0 && ~isnan(residual_corrected_err(i))
+                gia_ratio(i) = abs(residual_corrected(i)) ./ residual_corrected_err(i);
+            end
         else
             warning('⚠️ No elastic VLM match found for station %s. Setting corrected residual value to be NaN', name_gnss);
         end
@@ -1748,17 +1764,53 @@ if any(steps==13)
     figure('Color','w','Position',[100 100 1500 400]);
     x = 1:num_stations;
         errorbar(x, residual_corrected, residual_corrected_err, ...
-         'o', 'Color','k','MarkerFaceColor','none','MarkerSize',6, 'LineWidth',1.2);
+         'o', 'Color','k','CapSize',6, 'LineWidth',1.2);
     hold on
     grid on;
+
+    % Plot markers colored by residual-to-uncertainty ratio
+    for i = 1:num_stations
+
+        if isnan(gia_ratio(i))
+            marker_color = [0.8 0.8 0.8];   % gray for unavailable
+        elseif gia_ratio(i) < 1
+            marker_color = [1 1 1];         % open/white: not well resolved
+        elseif gia_ratio(i) < 2
+            marker_color = [0.35 0.65 1.0]; % blue: marginally resolved
+        else
+            marker_color = [0.9 0.15 0.1];  % red: robustly resolved
+        end
+
+        plot(x(i), residual_corrected(i), 'o', ...
+            'MarkerSize',7, ...
+            'MarkerFaceColor',marker_color, ...
+            'MarkerEdgeColor','k', ...
+            'LineWidth',1.1);
+    end
+
     set(gca,'GridAlpha',0.25);   % lighter grid
-    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',14);xtickangle(45);
-    ylabel('Mean residual uncertainty (mm/yr)');
-    xlabel('Station ID')
-    title('Misfits between GNSS-observed and modeled VLM corrected for contemporary PGs signals at Greenland GNSS Sites')
-    xlim([0.5 53.5]);
-    ylim([-7 14])
-    yline(0,'k-','LineWidth',1);
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',16); xtickangle(70);
+    ylabel('Mean residual and uncertainty (mm/yr)','FontSize',16);
+    %ylabel('Residual / inferred GIA (mm/yr)','FontSize',16); 
+    %xlabel('Station ID')
+    %title('GNSS-inferred GIA signal after correcting modeled elastic VLM and PG signals');
+    %title('Misfits between GNSS-observed and modeled VLM corrected for contemporary PGs signals at Greenland GNSS Sites')
+    xlim([0.5 num_stations+0.5]);
+    ylim([-10 15])
+    yline(0,'k-','LineWidth',1.5);
+
+    % Legend using dummy points
+    h1 = plot(NaN,NaN,'o','MarkerSize',7,'MarkerFaceColor',[1 1 1], ...
+        'MarkerEdgeColor','k','LineWidth',1.1);
+    h2 = plot(NaN,NaN,'o','MarkerSize',7,'MarkerFaceColor',[0.35 0.65 1.0], ...
+        'MarkerEdgeColor','k','LineWidth',1.1);
+    h3 = plot(NaN,NaN,'o','MarkerSize',7,'MarkerFaceColor',[0.9 0.15 0.1], ...
+        'MarkerEdgeColor','k','LineWidth',1.1);
+
+    leg = legend([h1 h2 h3], ...
+        {'|residual|/uncertainty < 1 (Not resolved)', '1 \leq |residual|/uncertainty < 2 (Moderately resolved)', '|residual|/uncertainty \geq 2 (Well resolved)'}, ...
+        'Location','northwest');
+    set(leg,'FontSize',16)
 
     if save_fig
         exportgraphics(gcf, fullfile(fpath_results_figures,'Figure3b.png'), 'Resolution',300);
@@ -1788,6 +1840,10 @@ if any(steps==13)
         match_idx_elas = find(elas_data.station == name_gnss, 1);
         if ~isempty(match_idx_gia) && ~isempty(match_idx_elas)
             residual_corrected(i) = gnss_rates_berg(i) - (mean_vlm_rates_corr(i) + gia3D_total_mean(match_idx_gia) + elas_data.Uelastic_CanPG(match_idx_elas) + elas_data.Uelastic_GrPG(match_idx_elas));
+            if isnan(gia3D_total_mean_sigma(match_idx_gia))
+                % This treatment is necessary only because GIA 3D prediction for NW Greenland is calculated by a single GIA simulation incorporating the Huy3 model
+                gia3D_total_mean_sigma(match_idx_gia) = 0;
+            end
             residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + (0.5 * vlm_iqr_corr(i)).^2 + gia3D_total_mean_sigma(match_idx_gia).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
             %residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + std_vlm_rates_corr(i).^2 + gia3D_total_mean_sigma(match_idx_gia).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
         else
@@ -1802,13 +1858,13 @@ if any(steps==13)
     hold on
     grid on;
     set(gca,'GridAlpha',0.25);   % lighter grid
-    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',14);xtickangle(45);
-    ylabel('Mean residual uncertainty (mm/yr)');
-    xlabel('Station ID')
-    title('Misfits between GNSS-observed and modeled total VLM at Greenland GNSS Sites')
+    set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',16); xtickangle(70);
+    ylabel('Mean residual and uncertainty (mm/yr)','FontSize',16);
+    %xlabel('Station ID')
+    %title('Misfits between GNSS-observed and modeled total VLM at Greenland GNSS Sites')
     xlim([0.5 53.5]);
-    ylim([-6 14])
-    yline(0,'k-','LineWidth',1);
+    ylim([-10 15])
+    yline(0,'k-','LineWidth',1.5);
 
     if save_fig
         exportgraphics(gcf, fullfile(fpath_results_figures,'Figure3c.png'), 'Resolution',300);
