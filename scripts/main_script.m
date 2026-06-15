@@ -4,7 +4,7 @@ addpath('~/Desktop/Code/matlab_functions/ITS_LIVE/')
 addpath('~/Desktop/Data/Altimetry/Greenland/')
 
 %% Define which steps to run
-steps=[10]
+steps=[13]
 % Load settings
 run('settings_observation_data.m');
 run('settings_gia_parameterization.m');
@@ -1535,7 +1535,7 @@ if any(steps==13)
     %       While Fig 1 covers time period (2003-2020) where all altimetry products overlap,
     %       VLM rates shown in this figure are based on different time period for each GNSS station
 
-    save_fig = false;
+    save_fig = true;
     plot_stn_id = false;
 
     % For raw residuals between GNSS and model elastic VLM
@@ -1625,6 +1625,14 @@ if any(steps==13)
 
     if save_fig
         saveas(gcf, fullfile(fpath_results_figures, 'Figure2a_with_basins.png'));
+    end
+
+    % Find the stations where VLM range exceeds 5 mm/yr
+    station_range = max(rates_matrix,[],2) - min(rates_matrix,[],2);
+    ind = find(station_range > 5);
+    for i = ind(:)'
+        fprintf('%s: range = %.2f mm/yr\n', ...
+            stn_id{i}, station_range(i));
     end
 
     % panel 2
