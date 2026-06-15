@@ -1538,36 +1538,12 @@ if any(steps==13)
     save_fig = false;
     plot_stn_id = false;
 
-    % First, do some preprocessing for the modeled elastic VLM rates for the measureItsLive data such that
-    % the elastic GrPG signals from Berg et al (2024) is added. This is because measureItsLive data already contains
-    % elastic PG signals. Later, we aggregate the modeled elastic VLM with the elastic GrPG signals using Berg et al. (2024),
-    % but this leads to double counting the counting elastic GrPG signals in the VLM, which we want to avoid.
-
-    rates_matrix_corr = rates_matrix;
-    for i = 1:num_stations
-        name_gnss = string(stn_id{i});
-        match_idx = find(elas_data.station == name_gnss, 1);
-        if ~isempty(match_idx)
-            rates_matrix_corr(i,1) = rates_matrix(i,1) - elas_data.Uelastic_GrPG(match_idx);
-            rates_matrix_corr(i,2) = rates_matrix(i,2) - elas_data.Uelastic_GrPG(match_idx);
-        else
-            warning('⚠️ No GIA match found for station %s. Setting corrected residual value to be NaN', name_gnss);
-        end
-    end
-
     % For raw residuals between GNSS and model elastic VLM
     mean_vlm_rates = mean(rates_matrix, 2, 'omitnan');       % → T×1 mean across datasets
     std_vlm_rates  = std(rates_matrix,0,2);      % → T×1 sigma across datasets
     vlm_rates_q25 = prctile(rates_matrix, 25, 2);
     vlm_rates_q75 = prctile(rates_matrix, 75, 2);
     vlm_iqr = vlm_rates_q75 - vlm_rates_q25;
-
-    % For redisuals where modeled VLM is corrected for GIA and PGs signals
-    mean_vlm_rates_corr = mean(rates_matrix_corr, 2, 'omitnan');       % → T×1 mean across datasets where JPL data are corrected for GrPG
-    std_vlm_rates_corr  = std(rates_matrix_corr,0,2);      % → T×1 sigma across datasets
-    vlm_rates_q25_corr = prctile(rates_matrix_corr, 25, 2);
-    vlm_rates_q75_corr = prctile(rates_matrix_corr, 75, 2);
-    vlm_iqr_corr = vlm_rates_q75_corr - vlm_rates_q25_corr;
 
     T = table(stn_id(:), mean_vlm_rates, std_vlm_rates, ...
     'VariableNames', {'Station','MeanVLM','StdVLM'});
@@ -1749,9 +1725,9 @@ if any(steps==13)
         name_gnss = string(stn_id{i});
         match_idx_elas = find(elas_data.station == name_gnss, 1);
         if ~isempty(match_idx_elas) % if the station is in the elas_data table
-            residual_corrected(i) = gnss_rates_berg(i) - (mean_vlm_rates_corr(i) + elas_data.Uelastic_CanPG(match_idx_elas) + elas_data.Uelastic_GrPG(match_idx_elas));
-            residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + (0.5 * vlm_iqr_corr(i)).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
-            %residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + std_vlm_rates_corr(i).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
+            residual_corrected(i) = gnss_rates_berg(i) - (mean_vlm_rates(i) + elas_data.Uelastic_CanPG(match_idx_elas) + elas_data.Uelastic_GrPG(match_idx_elas));
+            residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + (0.5 * vlm_iqr(i)).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
+            %residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + std_vlm_rates(i).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
             % Calculate gia signal to uncertainty ratio
             if residual_corrected_err(i) > 0 && ~isnan(residual_corrected_err(i))
                 gia_ratio(i) = abs(residual_corrected(i)) ./ residual_corrected_err(i);
@@ -1839,13 +1815,13 @@ if any(steps==13)
         match_idx_gia = find(gia_data.name == name_gnss, 1);
         match_idx_elas = find(elas_data.station == name_gnss, 1);
         if ~isempty(match_idx_gia) && ~isempty(match_idx_elas)
-            residual_corrected(i) = gnss_rates_berg(i) - (mean_vlm_rates_corr(i) + gia3D_total_mean(match_idx_gia) + elas_data.Uelastic_CanPG(match_idx_elas) + elas_data.Uelastic_GrPG(match_idx_elas));
+            residual_corrected(i) = gnss_rates_berg(i) - (mean_vlm_rates(i) + gia3D_total_mean(match_idx_gia) + elas_data.Uelastic_CanPG(match_idx_elas) + elas_data.Uelastic_GrPG(match_idx_elas));
             if isnan(gia3D_total_mean_sigma(match_idx_gia))
                 % This treatment is necessary only because GIA 3D prediction for NW Greenland is calculated by a single GIA simulation incorporating the Huy3 model
                 gia3D_total_mean_sigma(match_idx_gia) = 0;
             end
-            residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + (0.5 * vlm_iqr_corr(i)).^2 + gia3D_total_mean_sigma(match_idx_gia).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
-            %residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + std_vlm_rates_corr(i).^2 + gia3D_total_mean_sigma(match_idx_gia).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
+            residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + (0.5 * vlm_iqr(i)).^2 + gia3D_total_mean_sigma(match_idx_gia).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
+            %residual_corrected_err(i) = sqrt(gnss_rates_err_berg(i).^2 + std_vlm_rates(i).^2 + gia3D_total_mean_sigma(match_idx_gia).^2 + elas_data.Uelastic_CanPG_sigma(match_idx_elas).^2+ elas_data.Uelastic_GrPG_sigma(match_idx_elas).^2);
         else
             warning('⚠️ No GIA match found for station %s. Setting corrected residual value to be NaN', name_gnss);
         end
