@@ -4,7 +4,7 @@ addpath('~/Desktop/Code/matlab_functions/ITS_LIVE/')
 addpath('~/Desktop/Data/Altimetry/Greenland/')
 
 %% Define which steps to run
-steps=[13]
+steps=[14];
 % Load settings
 run('settings_observation_data.m');
 run('settings_gia_parameterization.m');
@@ -644,12 +644,12 @@ if any(steps==5)
         clear md1_regional_with_mask;
 
         disp('== Loading measureItsLive-GSFC ==');
-        [md2_regional_with_mask, mass_report_2_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_2, lat_sphere_2, long_sphere_2, dhdt_masked_years{2}, md_refined, X_2, Y_2, dhdt_masked{2}, 'sigma', 1e3, 'sigma_final', 1e3);
+        [md2_regional_with_mask, mass_report_2_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_2, lat_sphere_2, long_sphere_2, dhdt_masked_years{2}, md_refined, X_2, Y_2, dhdt_masked{2},'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md2_regional_with_mask.mat'), 'md2_regional_with_mask');
         clear md2_regional_with_mask;
 
         disp('== Loading DTU2025 ==');
-        [md3_regional_with_mask, mass_report_3_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_3, lat_sphere_3, long_sphere_3, dhdt_masked_years{3}, md_refined, X_3, Y_3, dhdt_masked{3}, 'sigma', 1e3, 'sigma_final', 1e3);
+        [md3_regional_with_mask, mass_report_3_with_mask] = interpolate_altimetry_to_mesh_massconservative(h_annual_3, lat_sphere_3, long_sphere_3, dhdt_masked_years{3}, md_refined, X_3, Y_3, dhdt_masked{3},'sigma', 1e3, 'sigma_final', 1e3);
         save(fullfile(fpath_mesh_model_regional_refined, 'md3_regional_with_mask.mat'), 'md3_regional_with_mask');
         clear md3_regional_with_mask;
 
@@ -668,6 +668,14 @@ if any(steps==5)
         save(fullfile(fpath_mesh_model_regional_refined, 'md6_regional_with_mask.mat'), 'md6_regional_with_mask');
         clear md6_regional_with_mask;
 
+        % Put mass reports in a cell array
+        mass_reports = { ...
+                        mass_report_1_with_mask, ...
+                        mass_report_2_with_mask, ...
+                        mass_report_3_with_mask, ...
+                        mass_report_4_with_mask, ...
+                        mass_report_5_with_mask, ...
+                        mass_report_6_with_mask};
         % save mass report
         save(fullfile(fpath_results_general, 'mass_report_with_mask.mat'), 'mass_report_1_with_mask', 'mass_report_2_with_mask', 'mass_report_3_with_mask', 'mass_report_4_with_mask', 'mass_report_5_with_mask', 'mass_report_6_with_mask');
 
@@ -990,7 +998,7 @@ if any(steps==9)
     %title('Modeld elastic and GNSS-observed VLM rates at Greenland GNSS stations', 'FontSize', 16);
     legend('show', 'Location', 'northwest', 'FontSize', 16, 'Interpreter','none');
     grid on;
-    set(gca, 'FontSize', 14);
+    set(gca, 'FontSize', 16);
     xticks(x_pos);
     xticklabels(stn_id);
     xtickangle(70);
@@ -1238,7 +1246,7 @@ if any(steps==11)
     % Note to myself: Covered period varies depending on the availability of ice altimetry product. But for the elastic calculation, it makes sense to show the common period of the GNSS duration (which also varies by stations)
 
     % spatial map of mean of total masked thickness change on the ISSM mesh
-    load_md = false;
+    load_md = true;
     plot_stn_id = false;
     plot_total_thickness_change_for_each_ice_data = false;
 
@@ -1275,6 +1283,7 @@ if any(steps==11)
         dice = diff(h{k}, 1, 2); % take differences along the time dimension
         dice_total{k} = sum(dice, 2);
         mean_dice_rate{k} = dice_total{k} / common_years_total; % annual trend for each product
+        %mean_dice_rate{k} = mean(mass_reports{k}.interp_data(:,idx_start:idx_end), 2, 'omitnan');
     end
 
     % get mean and sigma across the whole data products
@@ -1463,61 +1472,55 @@ if any(steps==12)
     % Generates panels for the corresponding supplementary figure (Figure S3)
     % Requires running Step(fig1) in advance.
 
-    save_fig = false;
+    save_fig = true;
     plot_stn_id = false;
-    diff_product = zeros(meshG.numberofvertices, numel(datasets));
+    diff_product = NaN(meshG.numberofvertices, numel(datasets));
+    mean_dice_rate_mat = NaN(length(indexG), numel(datasets));
+    for i = 1:length(datasets)
+        mean_dice_rate_mat(:,i) = mean_dice_rate{i};
+    end
+
+    mean_dice_rate_all = mean(mean_dice_rate_mat, 2, 'omitnan');
+
+    diff_product = NaN(length(indexG), numel(datasets));
+
     % Calculate and plot differences bewteen mean and each dataset in total thickness change rate(Supp. Fig. 1)
     for i = 1:length(datasets)
-        [maxval, idxmax] = max(mean_dice_rate{i}(indexG) - mean_dice_rate_all(indexG));
-        [minval, idxmin] = min(mean_dice_rate{i}(indexG) - mean_dice_rate_all(indexG));
 
-        % Extract coordinates of the max vertex (from your earlier result)
-        x_max = meshG.x(idxmax);
-        y_max = meshG.y(idxmax);
-        x_min = meshG.x(idxmin);
-        y_min = meshG.y(idxmin);
-
-        data = mean_dice_rate{i}(indexG) - mean_dice_rate_all(indexG);
+        data = mean_dice_rate_mat(:,i) - mean_dice_rate_all;
         diff_product(:,i) = data;
+        [maxval, idxmax] = max(data(indexG));
+        [minval, idxmin] = min(data(indexG));
 
+        p95 = prctile(abs(data),95);
         figure('Color','w')
         trisurf(meshG.elements, ...
                 meshG.x, meshG.y, ...
                 zeros(meshG.numberofvertices,1), ...
-                data, ...
+                data(indexG), ...
                 'EdgeColor','none', ...
                 'FaceColor','interp');
         view(2); axis equal tight;
         hold on
         caxis([-1 1]);
         greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
+        plot_basins_rignot(fpath_basin_boundaries_rignot,'Color',[0.35 0.35 0.35],'LineWidth',0.8)
         colormap(flip(custom_cmap))
         grid off
         axis off
-        plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor', 'w', 'MarkerSize',6)
-        plot(x_max, y_max, 'k+', 'MarkerSize', 6, 'LineWidth', 2)
-        plot(x_min, y_min, 'k*', 'MarkerSize', 6, 'LineWidth', 2)
-        title(sprintf(['Deviation from inter-product mean thickness change\nfor %s (m/yr)'], datasets{i}.name), 'FontSize',16,'Interpreter','none')
+        %plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor', 'w', 'MarkerSize',6)
+        %title(sprintf(['Deviation from inter-product mean thickness change\nfor %s (m/yr)'], datasets{i}.name), 'FontSize',16,'Interpreter','none')
         colorbar()
 
         if plot_stn_id
-            for i = 1:length(stn_id)
-                text(xg_psn(i), yg_psn(i), stn_id{i}, ...
+            for jj = 1:length(stn_id)
+                text(xg_psn(jj), yg_psn(jj), stn_id{jj}, ...
                     'FontSize',10, 'FontWeight','bold', ...
                     'Color','k', ...
                     'HorizontalAlignment','center', ...
                     'VerticalAlignment','bottom');
             end
         end
-
-        % --- Add text showing min and max values in panel ---
-        xlims = xlim;
-        ylims = ylim;
-        text(xlims(1) + 0.02*range(xlims), ylims(2) - 0.05*range(ylims), ...
-            sprintf('+ max = %.2f m/yr', maxval), 'Color', 'k', 'FontSize', 15, 'FontWeight', 'bold')
-
-        text(xlims(1) + 0.02*range(xlims), ylims(2) - 0.10*range(ylims), ...
-            sprintf('* min = %.2f m/yr', minval), 'Color', 'k', 'FontSize', 15, 'FontWeight', 'bold')
 
         if save_fig
             saveas(gcf, fullfile(fpath_results_figures, sprintf('Supp_Fig3_panel%d.png', i)));
@@ -1706,8 +1709,8 @@ if any(steps==13)
     end
 
     % Check
-    fprintf('Maximum VLM spread is at station %s with range %.3f mm/yr\n', stn_id{find(residual_err==(max(residual_err)))}, 2*max(residual_err));
-    fprintf('Minimum VLM spread is at station %s with range %.3f mm/yr\n', stn_id{find(residual_err==(min(residual_err)))}, 2*min(residual_err));
+    fprintf('Maximum combined residual uncertainty is at station %s with range %.3f mm/yr\n', stn_id{find(residual_err==(max(residual_err)))}, 2*max(residual_err));
+    fprintf('Minimum combined residual uncertainty is at station %s with range %.3f mm/yr\n', stn_id{find(residual_err==(min(residual_err)))}, 2*min(residual_err));
 
     % --- Create table of residuals ---
     % Build clean table
@@ -1812,8 +1815,8 @@ if any(steps==13)
     writetable(T_residuals, fullfile(fpath_results_general,'VLM_residuals_table_corrected_for_GrCanPGs.csv'));
 
     % Check
-    fprintf('Maximum VLM spread is at station %s with range %.2f mm/yr\n', stn_id{find(residual_corrected_err==(max(residual_corrected_err)))}, 2*max(residual_corrected_err));
-    fprintf('Minimum VLM spread is at station %s with range %.2f mm/yr\n', stn_id{find(residual_corrected_err==(min(residual_corrected_err)))}, 2*min(residual_corrected_err));
+    fprintf('Maximum combined residual uncertainty is at station %s with range %.2f mm/yr\n', stn_id{find(residual_corrected_err==(max(residual_corrected_err)))}, 2*max(residual_corrected_err));
+    fprintf('Minimum combined residual uncertainty is at station %s with range %.2f mm/yr\n', stn_id{find(residual_corrected_err==(min(residual_corrected_err)))}, 2*min(residual_corrected_err));
 
     disp('Creating Figure 3c')
     residual_corrected = NaN(num_stations, 1);
@@ -1854,8 +1857,8 @@ if any(steps==13)
         exportgraphics(gcf, fullfile(fpath_results_figures,'Figure3c.png'), 'Resolution',300);
     end
     % Check
-    fprintf('Maximum VLM spread is at station %s with range %.2f mm/yr\n', stn_id{find(residual_corrected_err==(max(residual_corrected_err)))}, 2*max(residual_corrected_err));
-    fprintf('Minimum VLM spread is at station %s with range %.2f mm/yr\n', stn_id{find(residual_corrected_err==(min(residual_corrected_err)))}, 2*min(residual_corrected_err));
+    fprintf('Maximum combined residual uncertainty is at station %s with range %.2f mm/yr\n', stn_id{find(residual_corrected_err==(max(residual_corrected_err)))}, 2*max(residual_corrected_err));
+    fprintf('Minimum combined residual uncertainty is at station %s with range %.2f mm/yr\n', stn_id{find(residual_corrected_err==(min(residual_corrected_err)))}, 2*min(residual_corrected_err));
 
 
     % Build clean table
@@ -1872,9 +1875,9 @@ if any(steps==13)
 end
 
 if any(steps==14)
-    save_fig = false;
+    save_fig = true;
     % Create Figure 4 showing the envolup of residual across Greenland
-    % Requires having Steps 10, 11, 12 already run. (need the variable 'y' for raw residual, 'mean_dice_rate' and 'meshG' info)
+    % Requires having Steps 10, 11, 12 already run. (need the variable 'y' for raw residual (y(stn, dataset) = rate_gnss - rate_model), 'mean_dice_rate' and 'meshG' info)
     for i = 1:length(stn_id)
         [max_residual(i), idx_max(i)] = max(y(i,:), [], 2);
         [min_residual(i), idx_min(i)] = min(y(i,:), [], 2);
@@ -1962,10 +1965,12 @@ if any(steps==14)
     b2 = bar(x, envelope_residual, 1); hold on;
     b2.FaceColor = 'blue';
     set(gca,'XTick',x,'XTickLabel',stn_id,'FontSize',16);
-    xtickangle(45);
-    xlabel('Station ID','FontSize',20); ylabel('Residual envelope (mm/yr)','FontSize',20);
+    xtickangle(70);
+    %xlabel('Station ID','FontSize',20); 
+    ylabel('Residual envelope (mm/yr)','FontSize',20);
     title('Inter-product residual envelope (max minus min) at Greenland GNSS stations','FontSize',24);
     yline(1,'k--','LineWidth',1);
+    yline(5,'k--','LineWidth',1);
     grid on; box on;
     if save_fig
         exportgraphics(gcf, fullfile(fpath_results_figures,'Figure4a.png'), 'Resolution',300);
@@ -1973,7 +1978,7 @@ if any(steps==14)
 
     % Plot mean ice elevation change rate difference between limiting altimetry-FAC models
     disp('Creating Figure 4')
-    stn_names = {'HEL2','UTMG','DKSG'};
+    stn_names = {'KUAQ','HEL2','UTMG','ASKY','DKSG'}; % stations that give residual envelope greater than 5mm/yr
     pad_km = 100;                 % zoom half-width in km
     pad_m  = pad_km * 1000;
     for i=1:length(stn_id)
