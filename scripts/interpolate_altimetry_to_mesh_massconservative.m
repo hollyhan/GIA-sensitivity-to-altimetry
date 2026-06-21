@@ -70,6 +70,14 @@ Atri = 0.5 * abs((x(tri(:,2))-x(tri(:,1))) .* (y(tri(:,3))-y(tri(:,1))) - ...
                  (x(tri(:,3))-x(tri(:,1))) .* (y(tri(:,2))-y(tri(:,1))));
 Avert = accumarray(tri(:), repmat(Atri/3,3,1), [nVerts 1]);
 
+src_mask_grid = any(~isnan(data3D),3);
+Fmask = scatteredInterpolant(Xgrid(:),Ygrid(:),double(src_mask_grid(:)),'nearest','nearest');
+target_mask = Fmask(x,y) > 0.5;
+
+fprintf('Source valid area: %.3e m2\n', sum(src_mask_grid(:))*cell_area);
+fprintf('Target masked mesh area: %.3e m2\n', sum(Avert(target_mask)));
+fprintf('Target/source area ratio: %.3f\n', sum(Avert(target_mask))/(sum(src_mask_grid(:))*cell_area));
+
 %% KD-tree setup
 kdtree = KDTreeSearcher([x, y]);
 [neighbors_primary, distances_primary] = rangesearch(kdtree,[x y],3*sigma);
@@ -115,7 +123,7 @@ for t = 1:nt
     end
     vals = vals_smooth; vals(isnan(vals))=0;
     interp_data(:,t)=vals;
-    mass_dst_total(t)=nansum(vals.*Avert)*rhoi*1e-12; % Gt
+    mass_dst_total(t)=nansum(vals(target_mask).*Avert(target_mask))*rhoi*1e-12; % Gt
 
     % ===== Final Gaussian smoothing (defensive) =====
     vals_final = zeros(nVerts,1);
@@ -140,33 +148,21 @@ for t = 1:nt
         vals_final(i)=nansum(w.*v);
     end
 
+    vals_final(~target_mask) = 0;
+
     % Preserve total (area-weighted) mass
-    total_before = nansum(vals.*Avert);
-    total_after  = nansum(vals_final.*Avert);
-    if isfinite(total_after)&&total_after~=0
-        vals_final = vals_final*(total_before/total_after);
+    total_src = nansum(slice(:))*cell_area;
+    total_mesh = nansum(vals_final(target_mask).*Avert(target_mask));
+    if isfinite(total_mesh)&&total_mesh~=0
+        vals_final(target_mask) = vals_final(target_mask)*(total_src/total_mesh);
     end
     interp_data(:,t)=vals_final;
-end
-
-%% Local area-weighted renormalization
-fprintf('\nApplying local area-weighted renormalization (projected grid)...\n');
-Fw=scatteredInterpolant(Xgrid(:),Ygrid(:),cell_area_local,'nearest','nearest');
-w_local=Fw(x,y);
-for t=1:nt
-    vals=interp_data(:,t);
-    total_src=nansum(data3D(:,:,t),'all')*cell_area*rhoi*1e-12;
-    total_mesh=nansum(vals.*Avert)*rhoi*1e-12;
-    if total_mesh>0
-        vals=vals.*(total_src./total_mesh).*(w_local./mean(w_local,'omitnan'));
-    end
-    interp_data(:,t)=vals;
 end
 
 %% Mass diagnostics
 mass_corr_total=zeros(nt,1);
 for t=1:nt
-    mass_corr_total(t)=nansum(interp_data(:,t).*Avert)*rhoi*1e-12;
+    mass_corr_total(t)=nansum(interp_data(target_mask,t).*Avert(target_mask))*rhoi*1e-12;
 end
 report.mass_src_total=mass_src_total;
 report.mass_dst_total=mass_dst_total;
@@ -194,6 +190,11 @@ if sum(mask_valid)>10
     fprintf('Diagnostic t=%d: corr=%.3f, RMS=%.2f m\n',t_diag,r,rms_diff);
 end
 fprintf('Interpolation completed (mass-conservative, resolution-independent).\n');
+
+report.interp_data = interp_data;
+report.years = years;
+report.data_label = data_label;
+report.target_mask = target_mask;
 
 %% Reconstruct thickness
 if strcmp(data_label,'dhdt')
