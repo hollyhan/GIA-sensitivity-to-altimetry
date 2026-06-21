@@ -12,7 +12,7 @@
 function data = read_GNET_VLM_table(filename, plot_fig)
 
     if nargin < 1
-        filename = 'Table_S1_GNET_VLM_Berg_et_al.xlsx';
+        filename = 'Table_S1_GNET_VLM_Berg_et_al_with_coordinates.xlsx';
     end
     if nargin < 2
         plot_fig = true;
@@ -27,6 +27,13 @@ function data = read_GNET_VLM_table(filename, plot_fig)
     data.station  = string(tbl.Station);
     data.tstart   = tbl.("tstart [yr]");
     data.tend     = tbl.("tend [yr]");
+
+    if ismember('lat', tbl.Properties.VariableNames)
+        data.latitude = tbl.("lat");
+    end
+    if ismember('lon', tbl.Properties.VariableNames)
+        data.longitude = tbl.("lon");
+    end
 
     % --- Handle the "value ± sigma" string fields ---
     numericFields = ["Uobserved [mm/yr]", ...
