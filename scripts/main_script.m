@@ -1305,63 +1305,6 @@ if any(steps==11)
     fprintf('Range of std_dice_rate_all: %.3f m/yr\n', ...
     max(std_dice_rate_all) - min(std_dice_rate_all));
 
-    % Panel 1
-    disp('Creating Figure 1a')
-    % Project to polar stereographic north
-    [xg_psn, yg_psn] = ll2psn(lat_gnss, lon_gnss);
-    % Extract greenland mesh only
-    [meshG, indexG] = extractGreenlandMeshfromGlobal(md);
-    data = mean_dice_rate_all(indexG);
-    figure('Color','w')
-    trisurf(meshG.elements, ...
-            meshG.x, meshG.y, ...
-            zeros(meshG.numberofvertices,1), ...
-            data, ...
-            'EdgeColor','none', ...
-            'FaceColor','interp');
-    view(2); axis equal tight;
-    hold on
-    caxis([-1 1]);
-    greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
-    plot_basins_rignot(fpath_basin_boundaries_rignot,'Color',[0.35 0.35 0.35],'LineWidth',0.8)
-    %plot_basins_mouginot(fpath_basin_boundaries_mouginot,'Color',[0.35 0.35 0.35],'LineWidth',0.8)
-    colormap(flip(custom_cmap))
-    grid off
-    axis off  
-    axis equal
-    plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor','w', 'MarkerSize',6)
-    %title({'Inter-product mean annual ice thickness change', 'between 2003-2020 (m/yr)'}, 'FontSize',16)
-    colorbar()
-    %graticulepsn(meshG.lat,meshG.long);
-    if save_fig
-        exportgraphics(gcf, fullfile(fpath_results_figures,'Figure1a.png'), 'Resolution',300);
-    end
-
-    % Panel 2
-    disp('Creating Figure 1b')
-    data = std_dice_rate_all(indexG);
-    figure('Color','w')
-    trisurf(meshG.elements, ...
-            meshG.x, meshG.y, ...
-            zeros(meshG.numberofvertices,1), ...
-            data, ...
-            'EdgeColor','none', ...
-            'FaceColor','interp');
-    view(2); axis equal tight;
-    hold on
-    caxis([0 1]);
-    greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
-    plot_basins_rignot(fpath_basin_boundaries_rignot,'Color',[0.35 0.35 0.35],'LineWidth',0.8)
-    colormap(flip(colormap('hot')))
-    grid off
-    axis off
-    plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor','w', 'MarkerSize',6)
-    %title('Inter-product standard deviation (m/yr)', 'FontSize',16)
-    colorbar()
-    if save_fig
-        exportgraphics(gcf, fullfile(fpath_results_figures,'Figure1b.png'), 'Resolution',300);
-    end
-
     % ===== Below plotting is using plotmodel and on a 3D global surface ========
     % panel 1
     %plotmodel(md, 'data', mean_dice_rate_all, 'figure', 10, 'caxis', [-1 1], 'colormap', flip(custom_cmap))
@@ -1533,7 +1476,7 @@ if any(steps==12)
 end
 
 if any(steps==13)
-    % Generate a figure equivalent to Fig 1 but for VLM
+    % Generate a figure equivalent to Fig 1
     % Note: This step assumes all the required variables to calculate the mean and std fields have been loaded.
     %       While Fig 1 covers time period (2003-2020) where all altimetry products overlap,
     %       VLM rates shown in this figure are based on different time period for each GNSS station
@@ -1551,83 +1494,123 @@ if any(steps==13)
     T = table(stn_id(:), mean_vlm_rates, std_vlm_rates, ...
     'VariableNames', {'Station','MeanVLM','StdVLM'});
 
-    % panel 1
-    disp('Creating Figure 2a')
-    figure('Color','w');
-    fig = gcf;
-    fig.Position(4) = fig.Position(4) + 200;   % +200 pixels vertically
+    %% Common settings for Figure 1 panels
+    fig_pos = [1002 379 560 620];
+    ax_pos  = [0.13 0.11 0.775 0.815];
 
-    % --- Base velocity axes ---
-    ax1 = axes();
-    itslive_imagesc(5);
-    hold(ax1,'on');
+    % Project GNSS to polar stereographic north
+    [xg_psn, yg_psn] = ll2psn(lat_gnss, lon_gnss);
+
+    % Extract Greenland mesh only
+    [meshG, indexG] = extractGreenlandMeshfromGlobal(md);
+
+    % Common map limits from mesh
+    xlim_common = [min(meshG.x) max(meshG.x)];
+    ylim_common = [min(meshG.y) max(meshG.y)];
+
+    %% Panel 1a
+    disp('Creating Figure 1a')
+    data = mean_dice_rate_all(indexG);
+
+    figure('Color','w');
+    set(gcf,'Position',fig_pos)
+
+    trisurf(meshG.elements, meshG.x, meshG.y, ...
+            zeros(meshG.numberofvertices,1), data, ...
+            'EdgeColor','none', 'FaceColor','interp');
+
+    view(2); hold on
+    caxis([-1 1]);
     greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
     plot_basins_rignot(fpath_basin_boundaries_rignot,'Color',[0.35 0.35 0.35],'LineWidth',0.8)
-    ax1.ColorScale = 'log';
-    clim(ax1, [1 1e4]);
-    view(ax1, 2); axis(ax1,'equal','tight');
-    grid(ax1,'off');
-    ax1.Visible = 'off';
-    colormap(ax1, flip(colormap('hot')));
+    colormap(flip(custom_cmap))
+    %plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor','w', 'MarkerSize',6)
 
-    % GNSS overlay
-    ax2 = axes('Position', ax1.Position, 'Color','none');
-    hold(ax2,'on');
-    scatter_handle = scatter(ax2, xg_psn, yg_psn, 100, mean_vlm_rates, ...
-                         'filled','MarkerEdgeColor','k','LineWidth',0.5);
-
-    colormap(ax2, flip(pink));
-    caxis(ax2, [0 15]);
-
-    % Match geometry
-    ax2.XLim = ax1.XLim;
-    ax2.YLim = ax1.YLim;
-    ax2.DataAspectRatio = ax1.DataAspectRatio;
-    ax2.PlotBoxAspectRatio = ax1.PlotBoxAspectRatio;
-    ax2.XDir = ax1.XDir;
-    ax2.YDir = ax1.YDir;
-    axis(ax2,'equal','tight');
-    ax2.Visible = 'off';
-
-    linkaxes([ax1 ax2],'xy');
-
-    % **Bring GNSS to front**
-    uistack(scatter_handle,'top');
-
-    %% --- lock axis positions ---
-    ax1.PositionConstraint = 'innerposition';
-    ax2.PositionConstraint = 'innerposition';
-
-    %% --- Save original axes position BEFORE adding colorbars
-    origPos = ax1.Position;
-
-    %% Add both colorbars
-    cb1 = colorbar(ax1,'Location','eastoutside');
-    cb1.Label.String = 'Velocity (m/yr, log scale)';
-
-    cb2 = colorbar(ax2,'Location','southoutside');
-    cb2.Label.String = 'Mean VLM rate (mm/yr)';
-
-    %% --- Restore axes positions (critical!)
-    ax1.Position = origPos;
-    ax2.Position = origPos;
-
-    %% --- Now place colorbars manually
-    cb1.Position = [0.8 0.20 0.03 0.60];
-    cb2.Position = [0.25 0.077 0.50 0.025];
-
-    % Super-group title
-    sgtitle('Mean ice velocity in Greenland and mean VLM at GNSS sites', 'FontSize',18)
-
-    if plot_stn_id
-        text(xg_psn, yg_psn + 10e3, stn_id, ...
-        'HorizontalAlignment','center', ...
-        'VerticalAlignment','bottom', ...
-        'FontSize',9, 'Color','k');
-    end
+    ax = gca;
+    origPos = ax.Position;
+    axis(ax,'equal')
+    axis(ax,'off')
+    xlim(ax,xlim_common)
+    ylim(ax,ylim_common)
+    ax.Position = ax_pos;
+    cb = colorbar(('eastoutside'));
+    cb.Position = [0.7 0.27 0.03 0.20];
+    ax.Position = origPos;
 
     if save_fig
-        saveas(gcf, fullfile(fpath_results_figures, 'Figure2a_with_basins.png'));
+        exportgraphics(gcf, fullfile(fpath_results_figures,'Figure1a.png'), 'Resolution',300);
+    end
+
+    %% Panel 1b
+    disp('Creating Figure 1b')
+    data = std_dice_rate_all(indexG);
+
+    figure('Color','w');
+    set(gcf,'Position',fig_pos)
+
+    trisurf(meshG.elements, meshG.x, meshG.y, ...
+            zeros(meshG.numberofvertices,1), data, ...
+            'EdgeColor','none', 'FaceColor','interp');
+
+    view(2); hold on
+    caxis([0 1]);
+    greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
+    plot_basins_rignot(fpath_basin_boundaries_rignot,'Color',[0.35 0.35 0.35],'LineWidth',0.8)
+    colormap(flip(hot))
+    %plot(xg_psn, yg_psn, 'ko', 'MarkerFaceColor','w', 'MarkerSize',6)
+
+    ax = gca;
+    origPos = ax.Position;
+    axis(ax,'equal')
+    axis(ax,'off')
+    xlim(ax,xlim_common)
+    ylim(ax,ylim_common)
+    ax.Position = ax_pos;
+    cb = colorbar(('eastoutside'));
+    cb.Position = [0.7 0.27 0.03 0.20];
+    ax.Position = origPos;
+
+    if save_fig
+        exportgraphics(gcf, fullfile(fpath_results_figures,'Figure1b.png'), 'Resolution',300);
+    end
+
+    %% Panel 1c
+    disp('Creating Figure 1c')
+
+    figure('Color','w');
+    set(gcf,'Position',fig_pos)
+
+    greenland('Color',[0.6 0.6 0.6],'LineWidth',0.5);
+    hold on
+    plot_basins_rignot(fpath_basin_boundaries_rignot,'Color',[0.35 0.35 0.35],'LineWidth',0.8)
+
+    scatter_handle = scatter(xg_psn, yg_psn, 150, mean_vlm_rates, ...
+        'filled','MarkerEdgeColor','k','LineWidth',1);
+
+    colormap(flip(pink));
+    caxis([0 15]);
+
+    ax = gca;
+    origPos = ax.Position;
+    axis(ax,'equal')
+    axis(ax,'off')
+    xlim(ax,xlim_common)
+    ylim(ax,ylim_common)
+    ax.Position = ax_pos;
+    cb = colorbar(('eastoutside'));
+    cb.Position = [0.7 0.27 0.03 0.20];
+    ax.Position = origPos;
+    if plot_stn_id
+        text(xg_psn, yg_psn + 10e3, stn_id, ...
+            'HorizontalAlignment','center', ...
+            'VerticalAlignment','bottom', ...
+            'FontSize',9, 'Color','k');
+    end
+
+    uistack(scatter_handle,'top');
+
+    if save_fig
+        exportgraphics(gcf, fullfile(fpath_results_figures,'Figure1c.png'), 'Resolution',300);
     end
 
     % Find the stations where VLM range exceeds 5 mm/yr
