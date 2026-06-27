@@ -16,8 +16,8 @@ fpath_love_numbers = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry
 fpath_mesh_model_regional = '/Users/kyhan/Desktop/LIA-Project/Pre-process/issm_model/source_file_josh/Param_UW.mat';
 fpath_mesh_model_global = '/Users/kyhan/Desktop/LIA-Project/Pre-process/IceHistory/md_global_ready_for_solve.mat';
 fpath_mesh_model_regional_refined = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/mesh';
-fpath_results_general = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results';
-fpath_results_figures = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/results/figures';
+fpath_results_general = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/manuscript/revised_submission_1st-round/data/20260619';
+fpath_results_figures = '/Users/kyhan/Desktop/Projects/GIA-sensitivity-to-altimetry/manuscript/revised_submission_1st-round/Figures_Raw/20260619';
 
 %--------------------- Altimetry Data Setting --------------------%
 % Name of the ice elevation data to use. Possible options are, (1)
@@ -61,7 +61,8 @@ fname_coord_gnss = 'coordinates_v2021_11_30.txt';
 %stn_7 = {'SRMP','UPVK','KULL','ASKY','DKSG','THU2','MARG'};
 %stn_id = [stn_1, stn_2, stn_3a, stn_3b, stn_4, stn_5, stn_6, stn_7];
 
-stns = {'HRDG','JWLF','KMJP','JGBL','NORD','LEFN','BLAS','NRSK','GROK','GMMA','YMER','DMHN','LBIB','DANE','WTHG','HMBG','MSVG','DGJG','SCOR','VFDG','KUAQ','MIK2','PLPK','KSNB','HEL2','KULU','ISOR','KBUG','LYNS','TREO','HJOR','UTMG','TIMM','NNVN','QAQ1','SENU','NUUK','KAPI','KLSQ','KELY','SISI','AASI','KAGA','SRMP','UPVK','KULL','ASKY','DKSG','THU2','MARG','KAGZ','SCBY','KMOR'};
+%stns = {'HRDG','JWLF','KMJP','JGBL','NORD','LEFN','BLAS','NRSK','GROK','GMMA','YMER','DMHN','LBIB','DANE','WTHG','HMBG','MSVG','DGJG','SCOR','VFDG','KUAQ','MIK2','PLPK','KSNB','HEL2','KULU','ISOR','KBUG','LYNS','TREO','HJOR','UTMG','TIMM','NNVN','QAQ1','SENU','NUUK','KAPI','KLSQ','KELY','SISI','AASI','KAGA','SRMP','UPVK','KULL','ASKY','DKSG','THU2','MARG','KAGZ','SCBY','KMOR'}; %following Adhikari et al. 2021's order
+stns = {'KAGZ','SCBY','KMOR','HRDG','JWLF','KMJP','JGBL','NORD','LEFN','BLAS','NRSK','GROK','GMMA','YMER','DMHN','LBIB','DANE','WTHG','HMBG','MSVG','DGJG','SCOR','VFDG','KUAQ','MIK2','PLPK','KSNB','HEL2','KULU','ISOR','KBUG','LYNS','TREO','HJOR','UTMG','TIMM','NNVN','QAQ1','SENU','NUUK','KAPI','KLSQ','KELY','SISI','AASI','KAGA','SRMP','UPVK','KULL','ASKY','DKSG','THU2','MARG'};
 stn_id = stns;
 
 n_degree = 0; % 0 = remove mean, 1 = linear detrending, 2 = quadratic detrending
